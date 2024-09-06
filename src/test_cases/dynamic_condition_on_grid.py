@@ -28,6 +28,7 @@ class LoadMonitoringActor(Actor):
         async for power in power_reader.new_receiver():
             if power.value:
                 self._power_values.append(power.value)
+            print(f"Power Buffer: {self._power_values}")
 
 class VoltActor(Actor):
     def __init__ (
