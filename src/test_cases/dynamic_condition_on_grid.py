@@ -22,12 +22,33 @@ class LoadMonitoringActor(Actor):
         super(). __init__(name=name)
         self._power_values: deque[Power] = deque(maxlen=10)
 
+    def check_gradual_load_change(self) -> bool:
+        """Check for gradual load change"""
+        # TODO perform actual check
+        return True
+
+    def check_step_load_change(self) -> bool:
+        """Check for step load change"""
+        # TODO perform actual check
+        return True
+
     async def _run(self):
         power_reader: FormulaEngine[Power] = microgrid.grid().power
 
         async for power in power_reader.new_receiver():
             if power.value:
+                # Store the latest power value
                 self._power_values.append(power.value)
+
+                # Check for gradual load change
+                if self.check_gradual_load_change():
+                    # TODO Inform other actors about gradual load change
+                    pass
+
+                # Check for step load changes
+                if self.check_step_load_change():
+                    # TODO Inform other actors about step load change
+                    pass
 
 class VoltActor(Actor):
     def __init__ (
@@ -57,6 +78,7 @@ async def main() -> None:
         ResamplerConfig(resampling_period=timedelta(seconds=1))
     )
 
+    # TODO set up channels
     my_actor = LoadMonitoringActor(name="myactor")
     await run(my_actor)
 
