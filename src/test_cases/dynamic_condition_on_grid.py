@@ -15,11 +15,9 @@ from collections import deque
 
 class LoadMonitoringActor(Actor):
     """Actor to monitor the grid load and inform othor actors about gradual or step load changes"""
-    def __init__ (
-            self,
-            name,
-    ):
-        super(). __init__(name=name)
+
+    def __init__(self, name):
+        super().__init__(name=name)
         self._power_values: deque[Power] = deque(maxlen=10)
 
     def check_gradual_load_change(self) -> bool:
@@ -50,11 +48,9 @@ class LoadMonitoringActor(Actor):
                     # TODO Inform other actors about step load change
                     pass
 
+
 class VoltActor(Actor):
-    def __init__ (
-            self,
-            name,
-    ):
+    def __init__(self, name):
         super().__init__(name=name)
         current_values: deque = deque(maxlen=10)
 
@@ -63,23 +59,22 @@ class VoltActor(Actor):
 
 
 class FreqActor(Actor):
-    def __init__ (
-            self,
-            name,
-    ):
-        super(). __init__(name=name)
+    def __init__(self, name):
+        super().__init__(name=name)
 
     async def _run(self):
         frequency_reader = microgrid.frequency()
 
+
 async def main() -> None:
     await microgrid.initialize(
         "grpc://microgrid.sandbox.api.frequenz.io:62060",
-        ResamplerConfig(resampling_period=timedelta(seconds=1))
+        ResamplerConfig(resampling_period=timedelta(seconds=1)),
     )
 
     # TODO set up channels
     my_actor = LoadMonitoringActor(name="myactor")
     await run(my_actor)
+
 
 asyncio.run(main())
