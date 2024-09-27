@@ -54,6 +54,10 @@ class VoltActor(Actor):
         super().__init__(name=name)
         self._voltage_values: deque = deque(maxlen=10)
 
+    def _check_voltage_response(self):
+        """Check for responses in the buffered voltage data"""
+        pass
+
     async def _run(self):
         voltage_reader = microgrid.voltage_per_phase()
 
@@ -62,6 +66,10 @@ class FreqActor(Actor):
     def __init__(self, name):
         super().__init__(name=name)
         self._frequency_values: deque = deque(maxlen=10)
+
+    def _check_frequency_response(self):
+        """Check for responses in the buffered frequency data"""
+        pass
 
     async def _run(self):
         frequency_reader = microgrid.frequency()
