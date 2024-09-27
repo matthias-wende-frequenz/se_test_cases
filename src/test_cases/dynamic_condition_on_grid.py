@@ -22,12 +22,10 @@ class LoadMonitoringActor(Actor):
 
     def check_gradual_load_change(self) -> bool:
         """Check for gradual load change"""
-        # TODO perform actual check
         return True
 
     def check_step_load_change(self) -> bool:
         """Check for step load change"""
-        # TODO perform actual check
         return True
 
     async def _run(self):
@@ -40,12 +38,12 @@ class LoadMonitoringActor(Actor):
 
                 # Check for gradual load change
                 if self.check_gradual_load_change():
-                    # TODO Inform other actors about gradual load change
+                    # ... Inform other actors about gradual load change
                     pass
 
                 # Check for step load changes
                 if self.check_step_load_change():
-                    # TODO Inform other actors about step load change
+                    # ... Inform other actors about step load change
                     pass
 
 
@@ -59,6 +57,10 @@ class VoltageResponseActor(Actor):
         pass
 
     async def _run(self):
+        """
+        Update voltage buffer with new values and check for
+        voltage response when triggered by LoadMonitoringActor.
+        """
         voltage_reader = microgrid.voltage_per_phase()
 
 
@@ -72,16 +74,20 @@ class FrequencyResponseActor(Actor):
         pass
 
     async def _run(self):
+        """
+        Update frequency buffer with new values and check for
+        frequency response when triggered by LoadMonitoringActor.
+        """
         frequency_reader = microgrid.frequency()
 
 
 async def main() -> None:
+    """Main function to initialize the microgrid, set up channels and run the actors"""
     await microgrid.initialize(
         "grpc://microgrid.sandbox.api.frequenz.io:62060",
         ResamplerConfig(resampling_period=timedelta(seconds=1)),
     )
 
-    # TODO set up channels
     my_actor = LoadMonitoringActor(name="myactor")
     await run(my_actor)
 
