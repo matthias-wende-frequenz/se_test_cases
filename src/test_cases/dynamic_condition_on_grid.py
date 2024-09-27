@@ -49,7 +49,7 @@ class LoadMonitoringActor(Actor):
                     pass
 
 
-class VoltActor(Actor):
+class VoltageResponseActor(Actor):
     def __init__(self, name):
         super().__init__(name=name)
         self._voltage_values: deque = deque(maxlen=10)
@@ -62,7 +62,7 @@ class VoltActor(Actor):
         voltage_reader = microgrid.voltage_per_phase()
 
 
-class FreqActor(Actor):
+class FrequencyResponseActor(Actor):
     def __init__(self, name):
         super().__init__(name=name)
         self._frequency_values: deque = deque(maxlen=10)
