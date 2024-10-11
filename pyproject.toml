@@ -1,0 +1,98 @@
+[build-system]
+requires = ["setuptools == 67.7.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "siemens-energy-test-cases"
+description = "Frequenz SDK test cases for the Siemens Energy HiL setup"
+readme = "README.md"
+license = { text = "Proprietary" }
+keywords = ["frequenz", "app", ""]
+classifiers = [ 
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Typing :: Typed",
+]
+requires-python = ">= 3.11, < 4"
+dependencies = [
+  "typing-extensions >= 4.6.1",
+# set to tag that includes min and max oparations for formulas
+  "frequenz-sdk >= 1.0.0-rc800",
+]
+dynamic = ["version"]
+
+[project.scripts]
+on_grid = "test_cases.dynamic_condition_on_grid:main"
+
+[[project.authors]]
+name = "Frequenz Energy-as-a-Service GmbH"
+email = "floss@frequenz.com"
+
+[project.optional-dependencies]
+dev-docstrings = [
+  "pydocstyle == 6.3.0",
+  "darglint == 1.8.1",
+  "tomli == 2.0.1",      # Needed by pydocstyle to read pyproject.toml
+]
+dev-formatting = ["black == 23.3.0", "isort == 5.12.0"]
+dev-mypy = [
+  "mypy == 1.2.0",
+  # For checking the noxfile, docs/ script, and tests
+  "frequenz-actor-pv-self-consumption[dev-noxfile,dev-pytest]",
+]
+dev-noxfile = [
+  "nox == 2023.4.22",
+  "frequenz-repo-config[app] == 0.2.0",
+]
+dev-pylint = [
+  "pylint == 2.17.3",
+  # For checking the noxfile, docs/ script, and tests
+  "frequenz-actor-pv-self-consumption[dev-noxfile,dev-pytest]",
+]
+dev-pytest = [
+  "pytest == 7.3.1",
+  "pytest-mock == 3.10.0",
+  "pytest-asyncio == 0.21.0",
+  "async-solipsism == 0.5",
+]
+dev = [
+  "siemens-energy-test-cases[dev-docstrings,dev-formatting,dev-gen-docs,dev-mypy,dev-noxfile,dev-pylint,dev-pytest]",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 88
+src_paths = ["src", "examples", "tests"]
+
+[tool.pylint.similarities]
+ignore-comments = ['yes']
+ignore-docstrings = ['yes']
+ignore-imports = ['no']
+min-similarity-lines = 40
+
+[tool.pylint.messages_control]
+disable = [
+  "too-few-public-methods",
+  # disabled because it conflicts with isort
+  "wrong-import-order",
+  "ungrouped-imports",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+required_plugins = ["pytest-asyncio", "pytest-mock"]
+
+[[tool.mypy.overrides]]
+module = ["async_solipsism", "async_solipsism.*"]
+ignore_missing_imports = true
+
+[tool.setuptools_scm]
+version_scheme = "post-release"
