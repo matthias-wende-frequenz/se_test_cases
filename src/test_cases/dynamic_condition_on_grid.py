@@ -4,6 +4,7 @@ Check Frequency and Voltage response, (limits in P, U, I for different inverters
 """
 
 import asyncio
+import logging
 
 from frequenz.sdk.actor import Actor, run, ResamplerConfig
 from frequenz.sdk import microgrid
@@ -11,6 +12,8 @@ from frequenz.sdk.timeseries import Power
 from frequenz.sdk.timeseries.formula_engine import FormulaEngine
 from datetime import timedelta
 from collections import deque
+
+_logger = logging.getLogger(__name__)
 
 
 class LoadMonitoringActor(Actor):
@@ -43,6 +46,7 @@ class LoadMonitoringActor(Actor):
 
         async for power in power_reader.new_receiver():
             if power.value:
+                _logger.info(f"Received power value: {power.value}")
                 # Store the latest power value
                 self._power_values.append(power.value)
 
@@ -102,6 +106,11 @@ async def async_main() -> None:
     await run(lm_actor)
 
 def main() -> None:
+    """Main function to run the asyncio event loop"""
+    logging.basicConfig(
+        level=logging.INFO,
+    )
+
     asyncio.run(async_main())
 
 if __name__ == "__main__":
