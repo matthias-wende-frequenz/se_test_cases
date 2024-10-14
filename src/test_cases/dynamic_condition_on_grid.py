@@ -88,7 +88,7 @@ class FrequencyResponseActor(Actor):
 async def async_main() -> None:
     """Main function to initialize the microgrid, set up channels and run the actors"""
     await microgrid.initialize(
-        "grpc://microgrid.sandbox.api.frequenz.io:62060",
+        "grpc://127.0.0.1:62060",
         ResamplerConfig(resampling_period=timedelta(seconds=1)),
     )
 
