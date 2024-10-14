@@ -91,18 +91,18 @@ class FrequencyResponseActor(Actor):
         frequency_reader = microgrid.frequency()
 
 
-async def run() -> None:
+async def async_main() -> None:
     """Main function to initialize the microgrid, set up channels and run the actors"""
     await microgrid.initialize(
         "grpc://microgrid.sandbox.api.frequenz.io:62060",
         ResamplerConfig(resampling_period=timedelta(seconds=1)),
     )
 
-    my_actor = LoadMonitoringActor(name="myactor")
-    await run(my_actor)
+    lm_actor = LoadMonitoringActor(name="myactor")
+    await run(lm_actor)
 
 def main() -> None:
-    asyncio.run(run())
+    asyncio.run(async_main())
 
 if __name__ == "__main__":
     main()
