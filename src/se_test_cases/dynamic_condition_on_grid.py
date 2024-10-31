@@ -16,8 +16,7 @@ from frequenz.quantities import Power
 
 _logger = logging.getLogger(__name__)
 
-
-class LoadMonitoringActor(Actor):
+class TestDynamicConditionOnGrid(Actor):
     """Actor to monitor the grid load and inform othor actors about gradual or step load changes"""
 
     def __init__(self, name: str):
@@ -104,7 +103,7 @@ async def async_main() -> None:
         ResamplerConfig(resampling_period=timedelta(seconds=1)),
     )
 
-    lm_actor = LoadMonitoringActor(name="myactor")
+    lm_actor = TestDynamicConditionOnGrid(name="Dynamic Condition On Grid")
     await run(lm_actor)
 
 def main() -> None:
