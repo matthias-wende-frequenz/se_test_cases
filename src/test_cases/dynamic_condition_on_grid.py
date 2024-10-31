@@ -6,12 +6,13 @@ Check Frequency and Voltage response, (limits in P, U, I for different inverters
 import asyncio
 import logging
 
-from frequenz.sdk.actor import Actor, run, ResamplerConfig
-from frequenz.sdk import microgrid
-from frequenz.sdk.timeseries import Power
-from frequenz.sdk.timeseries.formula_engine import FormulaEngine
 from datetime import timedelta
 from collections import deque
+
+from frequenz.sdk import microgrid
+from frequenz.sdk.actor import Actor, run, ResamplerConfig
+from frequenz.sdk.timeseries.formula_engine import FormulaEngine
+from frequenz.quantities import Power
 
 _logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ _logger = logging.getLogger(__name__)
 class LoadMonitoringActor(Actor):
     """Actor to monitor the grid load and inform othor actors about gradual or step load changes"""
 
-    def __init__(self, name):
+    def __init__(self, name: str):
         super().__init__(name=name)
         self._power_values: deque[Power] = deque(maxlen=10)
 
