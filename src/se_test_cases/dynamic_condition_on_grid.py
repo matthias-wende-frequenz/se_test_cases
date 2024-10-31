@@ -3,18 +3,17 @@ Validates model for gradual and step changes in load.
 Check Frequency and Voltage response, (limits in P, U, I for different inverters?)
 """
 
-import asyncio
 import logging
 
-from datetime import timedelta
 from collections import deque
 
 from frequenz.sdk import microgrid
-from frequenz.sdk.actor import Actor, run, ResamplerConfig
+from frequenz.sdk.actor import Actor
 from frequenz.sdk.timeseries.formula_engine import FormulaEngine
 from frequenz.quantities import Power
 
 _logger = logging.getLogger(__name__)
+
 
 class TestDynamicConditionOnGrid(Actor):
     """Actor to monitor the grid load and inform othor actors about gradual or step load changes"""
@@ -94,25 +93,3 @@ class FrequencyResponseActor(Actor):
         frequency response when triggered by LoadMonitoringActor.
         """
         frequency_formula = microgrid.frequency()
-
-
-async def async_main() -> None:
-    """Main function to initialize the microgrid, set up channels and run the actors"""
-    await microgrid.initialize(
-        "grpc://microgrid.sandbox.api.frequenz.io:62060",
-        ResamplerConfig(resampling_period=timedelta(seconds=1)),
-    )
-
-    lm_actor = TestDynamicConditionOnGrid(name="Dynamic Condition On Grid")
-    await run(lm_actor)
-
-def main() -> None:
-    """Main function to run the asyncio event loop"""
-    logging.basicConfig(
-        level=logging.INFO,
-    )
-
-    asyncio.run(async_main())
-
-if __name__ == "__main__":
-    main()
