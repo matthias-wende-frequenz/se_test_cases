@@ -43,11 +43,12 @@ class LoadMonitoringActor(Actor):
         return True
 
     async def _run(self):
-        power_reader: FormulaEngine[Power] = microgrid.grid().power
+        grid_power_formula: FormulaEngine[Power] = microgrid.grid().power
+        grid_power_receiver = grid_power_formula.new_receiver()
 
-        async for power in power_reader.new_receiver():
+        async for power in grid_power_receiver:
+            _logger.info(f"Received new power sample: {power}")
             if power.value:
-                _logger.info(f"Received power value: {power.value}")
                 # Store the latest power value
                 self._power_values.append(power.value)
 
@@ -76,7 +77,7 @@ class VoltageResponseActor(Actor):
         Update voltage buffer with new values and check for
         voltage response when triggered by LoadMonitoringActor.
         """
-        voltage_reader = microgrid.voltage_per_phase()
+        voltage_formula = microgrid.voltage_per_phase()
 
 
 class FrequencyResponseActor(Actor):
@@ -93,7 +94,7 @@ class FrequencyResponseActor(Actor):
         Update frequency buffer with new values and check for
         frequency response when triggered by LoadMonitoringActor.
         """
-        frequency_reader = microgrid.frequency()
+        frequency_formula = microgrid.frequency()
 
 
 async def async_main() -> None:
