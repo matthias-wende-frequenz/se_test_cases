@@ -42,6 +42,11 @@ class TestDynamicConditionOnGrid(Actor):
         self._load_change_sender = self._load_change_channel.new_sender()
 
         # Set up Actors to monitor voltage and frequency response
+        self._response_checking_actor = ResponseCheckingActor(
+            name="response_checking_actor",
+            load_change_receiver=self._load_change_channel.new_receiver()
+        )
+        self._response_checking_actor.start()
 
     async def _check_gradual_load_change(self) -> None:
         """Check for gradual load change"""
@@ -85,7 +90,7 @@ class TestDynamicConditionOnGrid(Actor):
                 await self.check_step_load_change()
 
 
-class CheckResponseActor(Actor):
+class ResponseCheckingActor(Actor):
     def __init__(self, name: str, load_change_receiver: Receiver[LoadChangeCases]):
         """
         Initialize the actor with a name and a receiver for load change cases.
@@ -94,6 +99,7 @@ class CheckResponseActor(Actor):
             name (str): Name of the actor.
             load_change_receiver (Receiver[LoadChangeCases]): Receiver for load change cases.
         """
+        logging.debug(f"Initializing ResponseCheckingActor with name: {name}")
         super().__init__(name=name)
 
         # TODO add the type
