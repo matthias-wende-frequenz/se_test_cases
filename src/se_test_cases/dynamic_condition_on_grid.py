@@ -8,6 +8,7 @@ import logging
 from collections import deque
 from math import sqrt
 
+from frequenz.channels import Broadcast
 from frequenz.sdk import microgrid
 from frequenz.sdk.actor import Actor
 from frequenz.sdk.timeseries.formula_engine import FormulaEngine
@@ -17,13 +18,26 @@ _logger = logging.getLogger(__name__)
 
 
 class TestDynamicConditionOnGrid(Actor):
-    """Actor to monitor the grid load and inform othor actors about gradual or step load changes"""
+    """Actor to monitor the grid load and inform othor actors about gradual or step load changes."""
 
     def __init__(self, name: str):
+        """
+        Initialize the actor with a name and set up broadcast channels for gradual and step load changes.
+
+        Args:
+            name (str): Name of the actor.
+        """
         super().__init__(name=name)
         self._power_values: deque[Power] = deque(maxlen=10)
 
-    def check_gradual_load_change(self) -> bool:
+        # TODO create enum to differentiate between gradual and step load changes
+        # Set up broadcast channels for gradual and step load changes
+        self._load_change_channel = Broadcast[bool](name="gradual_load_change")
+        self._load_change_sender = self._load_change_channel.new_sender()
+
+        # Set up Actors to monitor voltage and frequency response
+
+    async def _check_gradual_load_change(self) -> None:
         """Check for gradual load change"""
         # Set a threshold for the standard deviation
         standard_deviation_threshold = 1
@@ -42,12 +56,11 @@ class TestDynamicConditionOnGrid(Actor):
             / float(len(self._power_values))
         )
 
-        # Return True if the change is above the threshold
-        return std_deviation > standard_deviation_threshold
+        await self._load_change_sender.send(std_deviation > standard_deviation_threshold)
 
-    def check_step_load_change(self) -> bool:
+    async def check_step_load_change(self) -> None:
         """Check for step load change"""
-        return True
+        await self._load_change_sender.send(True)
 
     async def _run(self):
         grid_power_formula: FormulaEngine[Power] = microgrid.grid().power
@@ -59,19 +72,14 @@ class TestDynamicConditionOnGrid(Actor):
                 # Store the latest power value
                 self._power_values.append(power.value)
 
-                # Check for gradual load change
-                if self.check_gradual_load_change():
-                    # ... Inform other actors about gradual load change
-                    pass
-
-                # Check for step load changes
-                if self.check_step_load_change():
-                    # ... Inform other actors about step load change
-                    pass
+                # Check for gradual load change and inform other actors about gradual load change
+                await self._check_gradual_load_change()
+                # Check for step load changes inform other actors about step load change
+                await self.check_step_load_change()
 
 
 class VoltageResponseActor(Actor):
-    def __init__(self, name):
+    def __init__(self, name: str, ):
         super().__init__(name=name)
         self._voltage_values: deque = deque(maxlen=10)
 
