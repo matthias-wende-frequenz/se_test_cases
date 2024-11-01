@@ -7,6 +7,7 @@ import logging
 
 from collections import deque
 from math import sqrt
+from enum import Enum
 
 from frequenz.channels import Broadcast
 from frequenz.sdk import microgrid
@@ -15,6 +16,12 @@ from frequenz.sdk.timeseries.formula_engine import FormulaEngine
 from frequenz.quantities import Power
 
 _logger = logging.getLogger(__name__)
+
+
+class LoadChangeCases(Enum):
+    """Enum to differentiate between gradual and step load changes."""
+    GRADUAL = 1
+    STEP = 2
 
 
 class TestDynamicConditionOnGrid(Actor):
@@ -30,9 +37,8 @@ class TestDynamicConditionOnGrid(Actor):
         super().__init__(name=name)
         self._power_values: deque[Power] = deque(maxlen=10)
 
-        # TODO create enum to differentiate between gradual and step load changes
         # Set up broadcast channels for gradual and step load changes
-        self._load_change_channel = Broadcast[bool](name="gradual_load_change")
+        self._load_change_channel = Broadcast[LoadChangeCases](name="gradual_load_change")
         self._load_change_sender = self._load_change_channel.new_sender()
 
         # Set up Actors to monitor voltage and frequency response
@@ -56,11 +62,12 @@ class TestDynamicConditionOnGrid(Actor):
             / float(len(self._power_values))
         )
 
-        await self._load_change_sender.send(std_deviation > standard_deviation_threshold)
+        if std_deviation > standard_deviation_threshold: 
+            await self._load_change_sender.send(LoadChangeCases.GRADUAL)
 
     async def check_step_load_change(self) -> None:
         """Check for step load change"""
-        await self._load_change_sender.send(True)
+        await self._load_change_sender.send(LoadChangeCases.STEP)
 
     async def _run(self):
         grid_power_formula: FormulaEngine[Power] = microgrid.grid().power
