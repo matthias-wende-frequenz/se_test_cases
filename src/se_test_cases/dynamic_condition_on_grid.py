@@ -9,7 +9,7 @@ from collections import deque
 from math import sqrt
 from enum import Enum
 
-from frequenz.channels import Broadcast
+from frequenz.channels import Broadcast, Receiver, select, selected_from
 from frequenz.sdk import microgrid
 from frequenz.sdk.actor import Actor
 from frequenz.sdk.timeseries.formula_engine import FormulaEngine
@@ -85,27 +85,25 @@ class TestDynamicConditionOnGrid(Actor):
                 await self.check_step_load_change()
 
 
-class VoltageResponseActor(Actor):
-    def __init__(self, name: str, ):
+class CheckResponseActor(Actor):
+    def __init__(self, name: str, load_change_receiver: Receiver[LoadChangeCases]):
+        """
+        Initialize the actor with a name and a receiver for load change cases.
+
+        Args:
+            name (str): Name of the actor.
+            load_change_receiver (Receiver[LoadChangeCases]): Receiver for load change cases.
+        """
         super().__init__(name=name)
+
+        # TODO add the type
         self._voltage_values: deque = deque(maxlen=10)
+        self._frequency_values: deque[float] = deque(maxlen=10)
+        self._load_change_receiver = load_change_receiver
 
     def _check_voltage_response(self):
         """Check for responses in the buffered voltage data"""
         pass
-
-    async def _run(self):
-        """
-        Update voltage buffer with new values and check for
-        voltage response when triggered by LoadMonitoringActor.
-        """
-        voltage_formula = microgrid.voltage_per_phase()
-
-
-class FrequencyResponseActor(Actor):
-    def __init__(self, name):
-        super().__init__(name=name)
-        self._frequency_values: deque = deque(maxlen=10)
 
     def _check_frequency_response(self):
         """Check for responses in the buffered frequency data"""
@@ -113,7 +111,24 @@ class FrequencyResponseActor(Actor):
 
     async def _run(self):
         """
-        Update frequency buffer with new values and check for
-        frequency response when triggered by LoadMonitoringActor.
+        Update voltage buffer with new values and check for
+        voltage response when triggered by LoadMonitoringActor.
         """
+        grid_voltage_formula = microgrid.voltage_per_phase()
+        grid_voltage_receiver = grid_voltage_formula.new_receiver()
+
         frequency_formula = microgrid.frequency()
+        frequency_receiver = frequency_formula.new_receiver()
+
+        async for selected in select(self._load_change_receiver, grid_voltage_receiver, frequency_receiver):
+            if selected_from(selected, self._load_change_receiver):
+                _logger.info(f"Received load change response: {selected.message}")
+                self._check_voltage_response()
+                self._check_frequency_response()
+            elif selected_from(selected, grid_voltage_receiver):
+                _logger.debug(f"Received new voltage sample: {selected.message}")
+                # TODO do something with the voltage values
+                self._voltage_values.append(selected.message)
+            elif selected_from(selected, frequency_receiver):
+                _logger.debug(f"Received new frequency sample: {selected.message}")
+                self._voltage_values.append(selected.message.value)
