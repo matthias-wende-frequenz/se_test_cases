@@ -22,7 +22,17 @@ class LoadMonitoringActor(Actor):
 
     def check_gradual_load_change(self) -> bool:
         """Check for gradual load change"""
-        return True
+        # Set a threshold for the standard deviation
+        standard_deviation_threshold = 1 
+        # Calculate mean value in the deque
+        average_power = sum(self._power_values) / len(self._power_values) if self._power_values else 0  
+        # Calculate the standard deviation 
+        std_deviation = (sum((x - average_power) ** 2 for x in self._power_values) / len(self._power_values)) ** 0.5   
+  
+        # Return True if the change is above the threshold  
+        return std_deviation > standard_deviation_threshold 
+    
+        #return True
 
     def check_step_load_change(self) -> bool:
         """Check for step load change"""
