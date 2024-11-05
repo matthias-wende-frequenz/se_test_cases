@@ -3,45 +3,58 @@ Validates model for gradual and step changes in load.
 Check Frequency and Voltage response, (limits in P, U, I for different inverters?)
 """
 
-import asyncio
+import logging
 
-from frequenz.sdk.actor import Actor, run, ResamplerConfig
-from frequenz.sdk import microgrid
-from frequenz.sdk.timeseries import Power
-from frequenz.sdk.timeseries.formula_engine import FormulaEngine
-from datetime import timedelta
 from collections import deque
+from math import sqrt
+
+from frequenz.sdk import microgrid
+from frequenz.sdk.actor import Actor
+from frequenz.sdk.timeseries.formula_engine import FormulaEngine
+from frequenz.quantities import Power
+
+_logger = logging.getLogger(__name__)
 
 
-class LoadMonitoringActor(Actor):
+class TestDynamicConditionOnGrid(Actor):
     """Actor to monitor the grid load and inform othor actors about gradual or step load changes"""
 
-    def __init__(self, name):
+    def __init__(self, name: str):
         super().__init__(name=name)
         self._power_values: deque[Power] = deque(maxlen=10)
 
     def check_gradual_load_change(self) -> bool:
         """Check for gradual load change"""
         # Set a threshold for the standard deviation
-        standard_deviation_threshold = 1 
+        standard_deviation_threshold = 1
         # Calculate mean value in the deque
-        average_power = sum(self._power_values) / len(self._power_values) if self._power_values else 0  
-        # Calculate the standard deviation 
-        std_deviation = (sum((x - average_power) ** 2 for x in self._power_values) / len(self._power_values)) ** 0.5   
-  
-        # Return True if the change is above the threshold  
-        return std_deviation > standard_deviation_threshold 
-    
-        #return True
+        average_power = (
+            sum(self._power_values, Power.zero()) / float(len(self._power_values))
+            if self._power_values
+            else Power.zero()
+        )
+        # Calculate the standard deviation
+        std_deviation = sqrt(
+            sum(
+                (x.base_value - average_power.base_value) ** 2
+                for x in self._power_values
+            )
+            / float(len(self._power_values))
+        )
+
+        # Return True if the change is above the threshold
+        return std_deviation > standard_deviation_threshold
 
     def check_step_load_change(self) -> bool:
         """Check for step load change"""
         return True
 
     async def _run(self):
-        power_reader: FormulaEngine[Power] = microgrid.grid().power
+        grid_power_formula: FormulaEngine[Power] = microgrid.grid().power
+        grid_power_receiver = grid_power_formula.new_receiver()
 
-        async for power in power_reader.new_receiver():
+        async for power in grid_power_receiver:
+            _logger.info(f"Received new power sample: {power}")
             if power.value:
                 # Store the latest power value
                 self._power_values.append(power.value)
@@ -71,7 +84,7 @@ class VoltageResponseActor(Actor):
         Update voltage buffer with new values and check for
         voltage response when triggered by LoadMonitoringActor.
         """
-        voltage_reader = microgrid.voltage_per_phase()
+        voltage_formula = microgrid.voltage_per_phase()
 
 
 class FrequencyResponseActor(Actor):
@@ -88,21 +101,4 @@ class FrequencyResponseActor(Actor):
         Update frequency buffer with new values and check for
         frequency response when triggered by LoadMonitoringActor.
         """
-        frequency_reader = microgrid.frequency()
-
-
-async def run() -> None:
-    """Main function to initialize the microgrid, set up channels and run the actors"""
-    await microgrid.initialize(
-        "grpc://microgrid.sandbox.api.frequenz.io:62060",
-        ResamplerConfig(resampling_period=timedelta(seconds=1)),
-    )
-
-    my_actor = LoadMonitoringActor(name="myactor")
-    await run(my_actor)
-
-def main() -> None:
-    asyncio.run(run())
-
-if __name__ == "__main__":
-    main()
+        frequency_formula = microgrid.frequency()
