@@ -6,6 +6,7 @@ Check Frequency and Voltage response, (limits in P, U, I for different inverters
 import logging
 
 from collections import deque
+from math import sqrt
 
 from frequenz.sdk import microgrid
 from frequenz.sdk.actor import Actor
@@ -25,16 +26,24 @@ class TestDynamicConditionOnGrid(Actor):
     def check_gradual_load_change(self) -> bool:
         """Check for gradual load change"""
         # Set a threshold for the standard deviation
-        standard_deviation_threshold = 1 
+        standard_deviation_threshold = 1
         # Calculate mean value in the deque
-        average_power = sum(self._power_values) / len(self._power_values) if self._power_values else 0  
-        # Calculate the standard deviation 
-        std_deviation = (sum((x - average_power) ** 2 for x in self._power_values) / len(self._power_values)) ** 0.5   
-  
-        # Return True if the change is above the threshold  
-        return std_deviation > standard_deviation_threshold 
-    
-        #return True
+        average_power = (
+            sum(self._power_values, Power.zero()) / float(len(self._power_values))
+            if self._power_values
+            else Power.zero()
+        )
+        # Calculate the standard deviation
+        std_deviation = sqrt(
+            sum(
+                (x.base_value - average_power.base_value) ** 2
+                for x in self._power_values
+            )
+            / float(len(self._power_values))
+        )
+
+        # Return True if the change is above the threshold
+        return std_deviation > standard_deviation_threshold
 
     def check_step_load_change(self) -> bool:
         """Check for step load change"""
