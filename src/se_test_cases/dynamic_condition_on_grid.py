@@ -70,7 +70,7 @@ class TestDynamicConditionOnGrid(Actor):
         if std_deviation > standard_deviation_threshold: 
             await self._load_change_sender.send(LoadChangeCases.GRADUAL)
 
-    async def check_step_load_change(self) -> None:
+    async def _check_step_load_change(self) -> None:
         """Check for step load change"""
         await self._load_change_sender.send(LoadChangeCases.STEP)
 
@@ -87,7 +87,7 @@ class TestDynamicConditionOnGrid(Actor):
                 # Check for gradual load change and inform other actors about gradual load change
                 await self._check_gradual_load_change()
                 # Check for step load changes inform other actors about step load change
-                await self.check_step_load_change()
+                await self._check_step_load_change()
 
 
 class ResponseCheckingActor(Actor):
