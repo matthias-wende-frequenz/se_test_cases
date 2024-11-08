@@ -34,7 +34,7 @@ async def run_all_tests() -> None:
     """Main function to initialize the microgrid and run all the test case actors."""
     _logger.info("Initializing microgrid and connecting to microgrid API.")
     await microgrid.initialize(
-        "grpc://microgrid.sandbox.api.frequenz.io:62060",
+        "grpc://192.168.1.1:62060",
         ResamplerConfig(resampling_period=timedelta(seconds=1)),
     )
 
