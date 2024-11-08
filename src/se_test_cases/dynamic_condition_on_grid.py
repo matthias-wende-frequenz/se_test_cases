@@ -13,7 +13,7 @@ from frequenz.channels import Broadcast, Receiver, select, selected_from
 from frequenz.sdk import microgrid
 from frequenz.sdk.actor import Actor
 from frequenz.sdk.timeseries.formula_engine import FormulaEngine
-from frequenz.quantities import Power
+from frequenz.quantities import Frequency, Power
 
 _logger = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ class ResponseCheckingActor(Actor):
 
         # TODO add the type
         self._voltage_values: deque = deque(maxlen=10)
-        self._frequency_values: deque[float] = deque(maxlen=10)
+        self._frequency_values: deque[Frequency] = deque(maxlen=10)
         self._load_change_receiver = load_change_receiver
 
     def _check_voltage_response(self):
@@ -137,4 +137,5 @@ class ResponseCheckingActor(Actor):
                 self._voltage_values.append(selected.message)
             elif selected_from(selected, frequency_receiver):
                 _logger.debug(f"Received new frequency sample: {selected.message}")
-                self._voltage_values.append(selected.message.value)
+                if selected.message.value:
+                    self._frequency_values.append(selected.message.value)
