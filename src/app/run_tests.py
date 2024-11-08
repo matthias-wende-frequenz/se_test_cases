@@ -47,7 +47,7 @@ async def run_all_tests() -> None:
 def main() -> None:
     """Main function to run the asyncio event loop."""
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,
     )
 
     asyncio.run(run_all_tests())
