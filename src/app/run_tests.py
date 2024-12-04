@@ -10,7 +10,7 @@ import logging
 from datetime import timedelta
 
 from frequenz.sdk import microgrid
-from frequenz.sdk.actor import ResamplerConfig, Actor
+from frequenz.sdk.actor import ResamplerConfig, Actor, run
 
 from se_test_cases.dynamic_condition_on_grid import TestDynamicConditionOnGrid
 
@@ -26,16 +26,15 @@ async def run_test_case(test_case_actor: Actor, test_run_time: timedelta) -> Non
         test_run_time: The time for which the test case should run.
     """
     _logger.info(f"Running test case: {test_case_actor.name}")
-    test_case_actor.start()
-    await asyncio.sleep(test_run_time.total_seconds())
-    await test_case_actor.stop()
+    await run(test_case_actor)
+    _logger.info(f"Test case: {test_case_actor.name} completed.")
 
 
 async def run_all_tests() -> None:
     """Main function to initialize the microgrid and run all the test case actors."""
     _logger.info("Initializing microgrid and connecting to microgrid API.")
     await microgrid.initialize(
-        "grpc://microgrid.sandbox.api.frequenz.io:62060",
+        "grpc://192.168.1.1:62060",
         ResamplerConfig(resampling_period=timedelta(seconds=1)),
     )
 
@@ -48,7 +47,7 @@ async def run_all_tests() -> None:
 def main() -> None:
     """Main function to run the asyncio event loop."""
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,
     )
 
     asyncio.run(run_all_tests())
