@@ -30,7 +30,22 @@ async def run_test_case(test_case_actor: Actor, test_run_time: timedelta) -> Non
     _logger.info(f"Test case: {test_case_actor.name} completed.")
 
 
-async def run_all_tests() -> None:
+def get_test_case_actor_from_int(test_case_id: int) -> Actor:
+    """
+    Returns the test case actor based on the test case id.
+
+    Args:
+        test_case_id: The test case id.
+
+    Returns:
+        The test case actor.
+    """
+    test_case_actor_map = {
+        1: TestDynamicConditionOnGrid(name="Dynamic Condition On Grid"),
+    }
+    return test_case_actor_map.get(test_case_id)
+
+async def run_tests() -> None:
     """Main function to initialize the microgrid and run all the test case actors."""
     _logger.info("Initializing microgrid and connecting to microgrid API.")
     await microgrid.initialize(
@@ -43,6 +58,13 @@ async def run_all_tests() -> None:
         timedelta(seconds=10),
     )
 
+    test_case: Actor | None = None
+
+    async for mb_event in modbus_event_receiver:
+        if test_case:
+            await test_case.stop()
+        test_case = run_test_case(get_test_case_actor_from_int(mb_event)))
+
 
 def main() -> None:
     """Main function to run the asyncio event loop."""
@@ -50,7 +72,7 @@ def main() -> None:
         level=logging.INFO,
     )
 
-    asyncio.run(run_all_tests())
+    asyncio.run(run_tests())
 
 
 if __name__ == "__main__":
