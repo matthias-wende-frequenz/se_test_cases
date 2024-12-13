@@ -20,6 +20,7 @@ dependencies = [
   "typing-extensions >= 4.6.1",
 # set to tag that includes min and max oparations for formulas
   "frequenz-sdk >= 1.0.0-rc800",
+  "pymodbus >= 3.7.4, < 4",
 ]
 dynamic = ["version"]
 
