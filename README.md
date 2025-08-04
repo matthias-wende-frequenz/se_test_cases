@@ -1,5 +1,19 @@
 # Test Cases for Siemens Energy HiL System
 
+## Set up grafana for truck charging monitoring
+
+To start Grafana and influxdb3, run the script in the `scripts` directory:
+
+Run the following command to create the initial admin token for InfluxDB 3 and
+safe the token.
+
+```sh
+podman exec -ti influxdb3 influxdb3 create token --admin
+```
+
+As a next step, you need to create a datasource in Grafana.
+
+
 ## Create snap
 
 Note: The python snapcraft plugin doesn't support cross-compilation, 
