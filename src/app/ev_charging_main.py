@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import pathlib
 from datetime import timedelta
 
@@ -9,10 +10,15 @@ from frequenz.sdk import microgrid
 from frequenz.sdk.actor import Actor, ResamplerConfig, run
 from frequenz.sdk.timeseries.battery_pool import BatteryPool
 
+# Import the new InfluxReporter class
+from influx_reporter import InfluxReporter
+
 # Configure logging
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s %(levelname)s %(name)s %(message)s"
 )
+_logger = logging.getLogger(__name__)
+
 
 # Define path to the configuration file
 CONFIG_PATH = pathlib.Path("config.toml")
@@ -27,18 +33,11 @@ MIN_SOC = 0.1  # Minimum state of charge for the battery
 MICROGRID_API_URL = "grpc://[::1]:8800"
 # MICROGRID_API_URL = "grpc://microgrid.sandbox.api.frequenz.io:62060"
 
-_logger = logging.getLogger(__name__)
-
-# TODO:
-# * [ ] use latest value cache from the channels repo to simplify the code
-# * [ ] use the lvc in the control loop logic
-# * [ ] move the control loop logic code into a seperate module
-
 
 class TcControlLogic:
     """Control Logic for the Truck Charging Actor
 
-    TODO: Descripe the control logic in this docstring, render the mermaid to ascii and
+    TODO: Describe the control logic in this docstring, render the mermaid to ascii and
     place it here too.
     """
 
@@ -48,6 +47,7 @@ class TcControlLogic:
         target_power: Power,
         min_soc: Percentage,
     ):
+        """Initialize the control logic."""
         self._battery_pool = battery_pool
         self._target_power = target_power
         self._min_soc = min_soc
@@ -60,7 +60,7 @@ class TcControlLogic:
     ):
         """The main truck charging control logic.
 
-        This method is supposed to be run whenever we receive a new measurment from a meter
+        This method is supposed to be run whenever we receive a new measurement from a meter
         placed at the PCC.
         """
         # --- Flowchart Logic Implementation ---
@@ -107,8 +107,10 @@ class TruckChargingActor(Actor):
     """Actor that implements the control logic for the EV charging system."""
 
     def __init__(self):
-        """Initialize the ControlLogicActor."""
+        """Initialize the TruckChargingActor."""
         super().__init__()
+        # Instantiate the InfluxReporter
+        self._influx_reporter = InfluxReporter()
         _logger.info("TruckChargingActor initialized.")
 
     async def _run(self) -> None:
@@ -128,7 +130,6 @@ class TruckChargingActor(Actor):
         grid_power_receiver = grid_power.new_receiver()
 
         # State variables to hold the latest known values from each stream
-        # We can simplify that code by using the latest value cache from the channels repo
         latest_prod_power: Power | None = None
         latest_battery_power: Power | None = None
         latest_battery_soc: Percentage | None = None
@@ -150,49 +151,60 @@ class TruckChargingActor(Actor):
         )
 
         _logger.debug("Starting control loop")
-        async for selected in selection:
-            # Check which channel has a new message
-            if selected_from(selected, production_power_receiver):
-                latest_prod_power = selected.message.value if selected.message else None
-            if selected_from(selected, battery_power_receiver):
-                latest_battery_power = (
-                    selected.message.value if selected.message else None
-                )
-            if selected_from(selected, battery_soc_receiver):
-                latest_battery_soc = (
-                    selected.message.value if selected.message else None
-                )
-            if selected_from(selected, grid_power_receiver):
-                latest_grid_power = selected.message.value if selected.message else None
-                # In future we can implement a smarter logic on what to do if there is no data:
-                #      * if we have no battery data, we can only restrict EVs
-                #      * if we have no grid data, we stop EV chargers or we limit
-                #        the charging power and discharge the battery with fixed power
-                # For now we skip the control logic
-                if (
-                    latest_prod_power is None
-                    or latest_battery_soc is None
-                    or latest_grid_power is None
-                ):
-                    _logger.warning(
-                        "Received None from one of the streams, skipping control logic."
+        try:
+            async for selected in selection:
+                # Check which channel has a new message and update state
+                if selected_from(selected, production_power_receiver):
+                    latest_prod_power = (
+                        selected.message.value if selected.message else None
                     )
-                    continue
-                await tc_control_logic.run(
-                    latest_grid_power, latest_battery_power, latest_battery_soc
+                if selected_from(selected, battery_power_receiver):
+                    latest_battery_power = (
+                        selected.message.value if selected.message else None
+                    )
+                if selected_from(selected, battery_soc_receiver):
+                    latest_battery_soc = (
+                        selected.message.value if selected.message else None
+                    )
+                if selected_from(selected, grid_power_receiver):
+                    latest_grid_power = (
+                        selected.message.value if selected.message else None
+                    )
+
+                # --- Write latest metrics to InfluxDB using the reporter ---
+                self._influx_reporter.report_metrics(
+                    latest_grid_power,
+                    latest_prod_power,
+                    latest_battery_power,
+                    latest_battery_soc,
                 )
+
+                # --- Run Control Logic ---
+                # We only run the control logic when we get a new grid power value.
+                if selected_from(selected, grid_power_receiver):
+                    # For now we skip the control logic if data is missing
+                    if (
+                        latest_prod_power is None
+                        or latest_battery_soc is None
+                        or latest_grid_power is None
+                    ):
+                        _logger.warning(
+                            "Received None from one of the streams, skipping control logic."
+                        )
+                        continue
+                    await tc_control_logic.run(
+                        latest_grid_power, latest_battery_power, latest_battery_soc
+                    )
+        finally:
+            # Ensure the InfluxDB client is closed gracefully
+            self._influx_reporter.close()
 
 
 class EvChargingApp:
     """Application to run the Truck Charging Actor."""
 
-    def __init__(self):  # , *, config_paths: Sequence[pathlib.Path]):
-        """Initialize this app.
-
-        Args:
-            config_paths: The paths to the TOML configuration files.
-        """
-        # self._config_paths = config_paths
+    def __init__(self):
+        """Initialize this app."""
         self._tasks: set[asyncio.Task[None]] = set()
 
     async def run(self) -> None:
@@ -210,13 +222,12 @@ class EvChargingApp:
 
 
 async def main() -> None:
-    """Create and run the ControlLogicApp."""
-    # if not CONFIG_PATH.is_file():
-    #     logging.critical(f"Configuration file not found at: {CONFIG_PATH}")
-    #     return
+    """Create and run the EvChargingApp."""
+    if not os.getenv("INFLUX_TOKEN"):
+        logging.critical("INFLUX_TOKEN environment variable not set. Terminating.")
+        return
 
     app = EvChargingApp()
-    # app = EvChargingApp(config_paths=[CONFIG_PATH])
     await app.run()
 
 
