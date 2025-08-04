@@ -21,6 +21,7 @@ dependencies = [
 # set to tag that includes min and max oparations for formulas
   "frequenz-sdk >= 1.0.0-rc1802",
   "pymodbus >= 3.7.4, < 4",
+  "influxdb3-python >= 0.14.0, < 1",
 ]
 dynamic = ["version"]
 
