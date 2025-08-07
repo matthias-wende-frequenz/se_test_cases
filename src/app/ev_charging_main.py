@@ -9,6 +9,7 @@ from frequenz.quantities import Percentage, Power
 from frequenz.sdk import microgrid
 from frequenz.sdk.actor import Actor, ResamplerConfig, run
 from frequenz.sdk.timeseries.battery_pool import BatteryPool
+from frequenz.sdk.timeseries.ev_charger_pool import EVChargerPool
 
 # Import the new InfluxReporter class
 from influx_reporter import InfluxReporter
@@ -42,11 +43,19 @@ class TcControlLogic:
     def __init__(
         self,
         battery_pool: BatteryPool,
+        ev_charger_pool: EVChargerPool,
         target_power: Power,
         min_soc: Percentage,
     ):
-        """Initialize the control logic."""
+        """Initialize the control logic.
+        Args:
+            battery_pool: The battery pool to control.
+            ev_charger_pool: The EV charger pool to control.
+            target_power: The target power level for the grid.
+            min_soc: The minimum state of charge for the battery.
+        """
         self._battery_pool = battery_pool
+        self._ev_charger_pool = ev_charger_pool
         self._target_power = target_power
         self._min_soc = min_soc
 
@@ -111,27 +120,32 @@ class TruckChargingActor(Actor):
         """Run the main actor logic."""
         # Get the high-level pools from the microgrid
         battery_pool = microgrid.new_battery_pool(priority=1)
-        # ev_charger_pool = microgrid.new_ev_charger_pool(priority=1)
+        ev_charger_pool = microgrid.new_ev_charger_pool(priority=1)
 
         # get the data receivers for the relevant channels
         production_power = microgrid.producer().power
         battery_power = battery_pool.power
         battery_soc = battery_pool.soc
+        ev_charger_power = ev_charger_pool.power
         grid_power = microgrid.grid().power
+
         production_power_receiver = production_power.new_receiver()
         battery_power_receiver = battery_power.new_receiver()
         battery_soc_receiver = battery_soc.new_receiver()
+        ev_charger_power_receiver = ev_charger_power.new_receiver()
         grid_power_receiver = grid_power.new_receiver()
 
         # State variables to hold the latest known values from each stream
         latest_prod_power: Power | None = None
         latest_battery_power: Power | None = None
         latest_battery_soc: Percentage | None = None
+        latest_ev_charger_power: Power | None = None
         latest_grid_power: Power | None = None
         latest_target_power: Power = Power.from_watts(TARGET_POWER)
 
         tc_control_logic = TcControlLogic(
             battery_pool=battery_pool,
+            ev_charger_pool=ev_charger_pool,
             target_power=latest_target_power,
             min_soc=Percentage.from_fraction(MIN_SOC),
         )
@@ -141,6 +155,7 @@ class TruckChargingActor(Actor):
             production_power_receiver,
             battery_power_receiver,
             battery_soc_receiver,
+            ev_charger_power_receiver,
             grid_power_receiver,
         )
 
@@ -170,6 +185,13 @@ class TruckChargingActor(Actor):
                     self._influx_reporter.report_metrics(
                         timestamp=selected.message.timestamp,
                         value=latest_battery_soc.as_fraction(),
+                        metric_name="battery_soc",
+                    )
+                if selected_from(selected, ev_charger_power_receiver):
+                    latest_ev_charger_power = selected.message.value
+                    self._influx_reporter.report_metrics(
+                        timestamp=selected.message.timestamp,
+                        value=latest_ev_charger_power.as_watts(),
                         metric_name="battery_soc",
                     )
                 if selected_from(selected, grid_power_receiver):
@@ -230,8 +252,10 @@ async def main() -> None:
         datefmt="%Y-%m-%dT%H:%M:%S%z",
     )
 
-    if not os.getenv("INFLUX_TOKEN"):
-        logging.critical("INFLUX_TOKEN environment variable not set. Terminating.")
+    if not os.getenv("INFLUXDB3_AUTH_TOKEN"):
+        logging.critical(
+            "INFLUXDB3_AUTH_TOKEN environment variable not set. Terminating."
+        )
         return
 
     app = EvChargingApp()
