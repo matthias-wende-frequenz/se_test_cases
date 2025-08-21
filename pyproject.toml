@@ -91,6 +91,7 @@ disable = [
 testpaths = ["tests"]
 asyncio_mode = "auto"
 required_plugins = ["pytest-asyncio", "pytest-mock"]
+pythonpath = ["src"]
 
 [[tool.mypy.overrides]]
 module = ["async_solipsism", "async_solipsism.*"]

@@ -12,7 +12,7 @@ from frequenz.sdk.timeseries.battery_pool import BatteryPool
 from frequenz.sdk.timeseries.ev_charger_pool import EVChargerPool
 
 # Import the new InfluxReporter class
-from influx_reporter import InfluxReporter
+from .influx_reporter import InfluxReporter
 
 # Configure logging
 logging.basicConfig(
