@@ -90,7 +90,7 @@ class TcControlLogic:
                 # Restrict EV Power only
                 residual_power = latest_grid_power - self._target_power
                 _logger.info("Restricting EV power.")
-                # await ev_charger_pool.propose_power(residual_power)
+                await self._ev_charger_pool.propose_power(residual_power)
         else:
             if latest_grid_power < Power.zero():  # Excess power is exported
                 # Charge Battery with excess power only

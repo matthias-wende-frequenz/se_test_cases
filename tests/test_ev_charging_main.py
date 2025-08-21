@@ -102,10 +102,8 @@ async def test_restrict_ev_only_when_battery_is_low(
 
     # Assertions
     mock_battery_pool.propose_power.assert_not_called()
-    # The following assertion is commented out because the corresponding line
-    # in the source code is also commented out.
-    # residual_power = latest_grid_power - target_power
-    # mock_ev_charger_pool.propose_power.assert_called_once_with(residual_power)
+    residual_power = latest_grid_power - target_power
+    mock_ev_charger_pool.propose_power.assert_called_once_with(residual_power)
 
 
 @pytest.mark.asyncio
