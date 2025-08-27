@@ -148,6 +148,7 @@ class TruckChargingActor(Actor):
         super().__init__()
         # Instantiate the InfluxReporter
         self._influx_reporter = InfluxReporter()
+        self._tc_control_logic: TcControlLogic | None = None
         _logger.info("TruckChargingActor initialized.")
 
     async def _run(self) -> None:
@@ -186,7 +187,7 @@ class TruckChargingActor(Actor):
         latest_grid_power: Power | None = None
         latest_target_power: Power = Power.from_watts(TARGET_POWER)
 
-        tc_control_logic = TcControlLogic(
+        self._tc_control_logic = TcControlLogic(
             battery_pool=battery_pool,
             ev_charger_pool=ev_charger_pool,
             target_power=latest_target_power,
@@ -287,7 +288,7 @@ class TruckChargingActor(Actor):
                             "Received None from one of the streams, skipping control logic."
                         )
                         continue
-                    await tc_control_logic.perform(
+                    await self._tc_control_logic.perform(
                         latest_grid_power,
                         latest_battery_power,
                         latest_battery_soc,
