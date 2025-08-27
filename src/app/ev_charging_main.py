@@ -183,21 +183,13 @@ class TruckChargingActor(Actor):
         await ev_charger_pool.propose_power(self._target_power)
 
         # get the data receivers for the relevant channels
-        production_power = microgrid.producer().power
-        battery_power = battery_pool.power
-        battery_power_status = battery_pool.power_status
-        battery_soc = battery_pool.soc
-        ev_charger_power = ev_charger_pool.power
-        ev_power_status = ev_charger_pool.power_status
-        grid_power = microgrid.grid().power
-
-        production_power_receiver = production_power.new_receiver()
-        battery_power_receiver = battery_power.new_receiver()
-        battery_power_status_receiver = battery_power_status.new_receiver()
-        battery_soc_receiver = battery_soc.new_receiver()
-        ev_charger_power_receiver = ev_charger_power.new_receiver()
-        ev_power_status_receiver = ev_power_status.new_receiver()
-        grid_power_receiver = grid_power.new_receiver()
+        production_power_receiver = microgrid.producer().power.new_receiver()
+        battery_power_receiver = battery_pool.power.new_receiver()
+        battery_power_status_receiver = battery_pool.power_status.new_receiver()
+        battery_soc_receiver = battery_pool.soc.new_receiver()
+        ev_charger_power_receiver = ev_charger_pool.power.new_receiver()
+        ev_power_status_receiver = ev_charger_pool.power_status.new_receiver()
+        grid_power_receiver = microgrid.grid().power.new_receiver()
 
         # State variables to hold the latest known values from each stream
         latest_prod_power: Power | None = None
