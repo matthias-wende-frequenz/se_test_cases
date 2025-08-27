@@ -18,8 +18,10 @@ classifiers = [
 requires-python = ">= 3.11, < 4"
 dependencies = [
   "typing-extensions >= 4.6.1",
-# set to tag that includes min and max oparations for formulas
+  # set to tag that includes min and max oparations for formulas
   "frequenz-sdk >= 1.0.0-rc2203",
+  "frequenz-quantities",
+  "frequenz-dispatch >= 0.10.2, < 1",
   "pymodbus >= 3.7.4, < 4",
   "influxdb3-python >= 0.14.0, < 1",
 ]
