@@ -7,6 +7,7 @@ import tomllib
 from datetime import datetime, timedelta, timezone
 
 from frequenz.channels import Broadcast, Receiver, select, selected_from
+from frequenz.dispatch import Dispatcher, DispatchInfo, MergeByType
 from frequenz.quantities import Percentage, Power
 from frequenz.sdk import microgrid
 from frequenz.sdk.actor import Actor, ResamplerConfig, run
@@ -53,6 +54,10 @@ class TcControlLogic:
 
         self._target_power = target_power
         self._min_soc = min_soc
+
+    def set_target_power(self, target_power: Power) -> None:
+        """Set a new target power."""
+        self._target_power = target_power
 
     async def perform(
         self,
@@ -158,11 +163,17 @@ class TruckChargingActor(Actor):
         self,
         config: Config,
         config_rx: Receiver[Config | Exception | None],
+        dispatch_info_rx: Receiver[DispatchInfo] | None,
     ):
         """Initialize the TruckChargingActor."""
         super().__init__()
         self._config = config
         self._config_receiver = config_rx
+        self._dispatch_info_rx = (
+            dispatch_info_rx
+            if dispatch_info_rx is not None
+            else Broadcast[DispatchInfo](name="dispatch_info_channel").new_receiver()
+        )
         # Instantiate the InfluxReporter
         self._influx_reporter = (
             InfluxReporter()
@@ -172,6 +183,30 @@ class TruckChargingActor(Actor):
         self._target_power = self._config.target_power
         self._tc_control_logic: TcControlLogic | None = None
         _logger.info("TruckChargingActor initialized.")
+
+    def _apply_dispatch_info(self, dispatch_info: DispatchInfo) -> None:
+        """Apply a dispatch info."""
+        _logger.info("Received new dispatch info: %s", dispatch_info)
+        if reduction_w := dispatch_info.options.get("power_reduction_w"):
+            try:
+                power_reduction = Power.from_watts(float(reduction_w))
+                self._target_power = self._config.target_power - power_reduction
+                _logger.info(
+                    "Dispatch: Reducing target power by %s. New target power: %s",
+                    power_reduction,
+                    self._target_power,
+                )
+            except (ValueError, TypeError) as exc:
+                _logger.error("Dispatch: Failed to set target power reduction: %s", exc)
+        else:
+            self._target_power = self._config.target_power
+            _logger.info(
+                "Dispatch: No power reduction specified. Resetting to configured target power: %s",
+                self._target_power,
+            )
+
+        if self._tc_control_logic:
+            self._tc_control_logic.set_target_power(self._target_power)
 
     async def _run(self) -> None:
         """Run the main actor logic."""
@@ -216,6 +251,7 @@ class TruckChargingActor(Actor):
             ev_charger_power_receiver,
             ev_power_status_receiver,
             grid_power_receiver,
+            self._dispatch_info_rx,
             self._config_receiver,
         )
 
@@ -225,6 +261,10 @@ class TruckChargingActor(Actor):
                 # Check which channel has a new message and update state
                 if selected.message is None:
                     continue  # Skip if no message is available
+
+                if selected_from(selected, self._dispatch_info_rx):
+                    self._apply_dispatch_info(selected.message)
+                    continue
 
                 if selected_from(selected, self._config_receiver):
                     new_config = selected.message
@@ -359,11 +399,41 @@ async def main() -> None:
     )
 
     config_channel = Broadcast[Config | Exception | None](name="config_channel")
-    actor = TruckChargingActor(
-        config=actor_config,
-        config_rx=config_channel.new_receiver(),
-    )
-    await run(actor)
+    dispatch_api_auth_key = os.getenv("DISPATCH_API_AUTH_KEY")
+    dispatch_api_sign_secret = os.getenv("DISPATCH_API_SIGN_SECRET")
+
+    if dispatch_api_auth_key:
+        microgrid_id = microgrid.connection_manager.get().microgrid_id
+        if microgrid_id is None:
+            raise RuntimeError("Microgrid ID is not available for dispatch mode.")
+
+        async def create_actor(
+            dispatch_info: DispatchInfo, dispatch_info_rx: Receiver[DispatchInfo]
+        ) -> TruckChargingActor:
+            return TruckChargingActor(
+                config=actor_config,
+                config_rx=config_channel.new_receiver(),
+                dispatch_info_rx=dispatch_info_rx,
+            )
+
+        async with Dispatcher(
+            key=dispatch_api_auth_key,
+            # sign_secret=dispatch_api_sign_secret,
+            microgrid_id=microgrid_id,
+            server_url=os.getenv("DISPATCH_API_URL"),
+        ) as dispatcher:
+            await dispatcher.start_managing(
+                dispatch_type="SE_TRUCK_CHARGING",
+                actor_factory=create_actor,
+                merge_strategy=MergeByType(),
+            )
+            await dispatcher
+    else:
+        actor = TruckChargingActor(
+            config=actor_config,
+            config_rx=config_channel.new_receiver(),
+        )
+        await run(actor)
 
 
 if __name__ == "__main__":
