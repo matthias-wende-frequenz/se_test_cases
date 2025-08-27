@@ -1,0 +1,3 @@
+[truck_charging]
+target_power_w = 25000.0
+min_soc = 0.1

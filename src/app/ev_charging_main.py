@@ -2,15 +2,18 @@ import asyncio
 import logging
 import os
 import pathlib
+import sys
+import tomllib
 from datetime import datetime, timedelta, timezone
 
-from frequenz.channels import select, selected_from
+from frequenz.channels import Broadcast, Receiver, select, selected_from
 from frequenz.quantities import Percentage, Power
 from frequenz.sdk import microgrid
 from frequenz.sdk.actor import Actor, ResamplerConfig, run
 from frequenz.sdk.timeseries.battery_pool import BatteryPool
 from frequenz.sdk.timeseries.ev_charger_pool import EVChargerPool
 
+from .config import Config
 # Import the new InfluxReporter class
 from .influx_reporter import InfluxReporter
 
@@ -23,12 +26,6 @@ _logger = logging.getLogger(__name__)
 
 # Define path to the configuration file
 CONFIG_PATH = pathlib.Path("config.toml")
-
-# Define the TARGET_POWER constant (should be defined in the config or come from a dispatch event)
-TARGET_POWER = 25000.0  # Default target power in watts
-
-# Define the minimum state of charge for the battery
-MIN_SOC = 0.1  # Minimum state of charge for the battery
 
 # Define the microgrid API URL
 MICROGRID_API_URL = "grpc://[::1]:8800"
@@ -143,11 +140,18 @@ class TcControlLogic:
 class TruckChargingActor(Actor):
     """Actor that implements the control logic for the EV charging system."""
 
-    def __init__(self):
+    def __init__(
+        self,
+        config: Config,
+        config_rx: Receiver[Config | Exception | None],
+    ):
         """Initialize the TruckChargingActor."""
         super().__init__()
+        self._config = config
+        self._config_receiver = config_rx
         # Instantiate the InfluxReporter
         self._influx_reporter = InfluxReporter()
+        self._target_power = self._config.target_power
         self._tc_control_logic: TcControlLogic | None = None
         _logger.info("TruckChargingActor initialized.")
 
@@ -156,9 +160,9 @@ class TruckChargingActor(Actor):
         # Get the high-level pools from the microgrid
         battery_pool = microgrid.new_battery_pool(priority=1)
         ev_charger_pool = microgrid.new_ev_charger_pool(priority=1)
-        await ev_charger_pool.propose_power(Power.from_watts(TARGET_POWER))
+        await ev_charger_pool.propose_power(self._target_power)
         await asyncio.sleep(2)
-        await ev_charger_pool.propose_power(Power.from_watts(TARGET_POWER))
+        await ev_charger_pool.propose_power(self._target_power)
 
         # get the data receivers for the relevant channels
         production_power = microgrid.producer().power
@@ -185,13 +189,12 @@ class TruckChargingActor(Actor):
         latest_ev_charger_power: Power | None = None
         latest_ev_charger_max_power: Power = Power.zero()
         latest_grid_power: Power | None = None
-        latest_target_power: Power = Power.from_watts(TARGET_POWER)
 
         self._tc_control_logic = TcControlLogic(
             battery_pool=battery_pool,
             ev_charger_pool=ev_charger_pool,
-            target_power=latest_target_power,
-            min_soc=Percentage.from_fraction(MIN_SOC),
+            target_power=self._target_power,
+            min_soc=self._config.min_soc,
         )
 
         # Use frequenz.channels.select to react to messages from multiple sources
@@ -203,6 +206,7 @@ class TruckChargingActor(Actor):
             ev_charger_power_receiver,
             ev_power_status_receiver,
             grid_power_receiver,
+            self._config_receiver,
         )
 
         _logger.debug("Starting control loop")
@@ -211,6 +215,18 @@ class TruckChargingActor(Actor):
                 # Check which channel has a new message and update state
                 if selected.message is None:
                     continue  # Skip if no message is available
+
+                if selected_from(selected, self._config_receiver):
+                    new_config = selected.message
+                    if isinstance(new_config, Config):
+                        self._config = new_config
+                        self._target_power = self._config.target_power
+                        if self._tc_control_logic:
+                            self._tc_control_logic.set_target_power(self._target_power)
+                        _logger.info("Configuration updated.")
+                    else:
+                        _logger.warning("Received invalid config update.")
+                    continue
 
                 if selected_from(selected, production_power_receiver):
                     latest_prod_power = selected.message.value
@@ -301,27 +317,6 @@ class TruckChargingActor(Actor):
             self._influx_reporter.close()
 
 
-class EvChargingApp:
-    """Application to run the Truck Charging Actor."""
-
-    def __init__(self):
-        """Initialize this app."""
-        self._tasks: set[asyncio.Task[None]] = set()
-
-    async def run(self) -> None:
-        """Run the application."""
-        _logger.info("Starting Power Controller App...")
-
-        await microgrid.initialize(
-            MICROGRID_API_URL,
-            ResamplerConfig(
-                resampling_period=timedelta(seconds=1),
-            ),
-        )
-
-        await run(TruckChargingActor())
-
-
 async def main() -> None:
     """Create and run the EvChargingApp."""
     logging.basicConfig(
@@ -339,8 +334,27 @@ async def main() -> None:
     # Silence the noisy SDK logger
     logging.getLogger("frequenz.sdk.microgrid._old_component_data").setLevel(60)
 
-    app = EvChargingApp()
-    await app.run()
+    if len(sys.argv) >= 2:
+        config_path = pathlib.Path(sys.argv[1])
+        with open(config_path, "rb") as f:
+            config_dict = tomllib.load(f)
+
+        actor_config = Config.create(config_dict)
+    else:
+        # Use default configuration
+        actor_config = Config()
+
+    await microgrid.initialize(
+        MICROGRID_API_URL,
+        ResamplerConfig(resampling_period=timedelta(seconds=1)),
+    )
+
+    config_channel = Broadcast[Config | Exception | None](name="config_channel")
+    actor = TruckChargingActor(
+        config=actor_config,
+        config_rx=config_channel.new_receiver(),
+    )
+    await run(actor)
 
 
 if __name__ == "__main__":
