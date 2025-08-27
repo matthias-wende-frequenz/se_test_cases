@@ -15,6 +15,7 @@ from frequenz.sdk.timeseries.battery_pool import BatteryPool
 from frequenz.sdk.timeseries.ev_charger_pool import EVChargerPool
 
 from .config import Config
+
 # Import the new InfluxReporter class
 from .influx_reporter import InfluxReporter
 
@@ -262,11 +263,11 @@ class TruckChargingActor(Actor):
                 if selected.message is None:
                     continue  # Skip if no message is available
 
-                if selected_from(selected, self._dispatch_info_rx):
+                elif selected_from(selected, self._dispatch_info_rx):
                     self._apply_dispatch_info(selected.message)
                     continue
 
-                if selected_from(selected, self._config_receiver):
+                elif selected_from(selected, self._config_receiver):
                     new_config = selected.message
                     if isinstance(new_config, Config):
                         self._config = new_config
@@ -278,21 +279,21 @@ class TruckChargingActor(Actor):
                         _logger.warning("Received invalid config update.")
                     continue
 
-                if selected_from(selected, production_power_receiver):
+                elif selected_from(selected, production_power_receiver):
                     latest_prod_power = selected.message.value
                     self._influx_reporter.report_metrics(
                         timestamp=selected.message.timestamp,
                         value=latest_prod_power.as_watts(),
                         metric_name="production_power_watts",
                     )
-                if selected_from(selected, battery_power_receiver):
+                elif selected_from(selected, battery_power_receiver):
                     latest_battery_power = selected.message.value
                     self._influx_reporter.report_metrics(
                         timestamp=selected.message.timestamp,
                         value=latest_battery_power.as_watts(),
                         metric_name="battery_power_watts",
                     )
-                if selected_from(selected, battery_power_status_receiver):
+                elif selected_from(selected, battery_power_status_receiver):
                     latest_battery_bounds = selected.message.bounds
                     latest_battery_max_discharge_power = (
                         latest_battery_bounds.lower
@@ -304,21 +305,21 @@ class TruckChargingActor(Actor):
                         value=latest_battery_max_discharge_power.as_watts(),
                         metric_name="battery_max_discharge_power_watts",
                     )
-                if selected_from(selected, battery_soc_receiver):
+                elif selected_from(selected, battery_soc_receiver):
                     latest_battery_soc = selected.message.value
                     self._influx_reporter.report_metrics(
                         timestamp=selected.message.timestamp,
                         value=latest_battery_soc.as_fraction(),
                         metric_name="battery_soc",
                     )
-                if selected_from(selected, ev_charger_power_receiver):
+                elif selected_from(selected, ev_charger_power_receiver):
                     latest_ev_charger_power = selected.message.value
                     self._influx_reporter.report_metrics(
                         timestamp=selected.message.timestamp,
                         value=latest_ev_charger_power.as_watts(),
                         metric_name="ev_charger_power_watts",
                     )
-                if selected_from(selected, ev_power_status_receiver):
+                elif selected_from(selected, ev_power_status_receiver):
                     latest_ev_charger_max_power = selected.message.bounds
                     latest_ev_charger_max_power = (
                         latest_ev_charger_max_power.upper
@@ -330,7 +331,7 @@ class TruckChargingActor(Actor):
                         value=latest_ev_charger_max_power.as_watts(),
                         metric_name="ev_charger_max_power_watts",
                     )
-                if selected_from(selected, grid_power_receiver):
+                elif selected_from(selected, grid_power_receiver):
                     latest_grid_power = selected.message.value
                     logging.debug(
                         f"Received grid power: {latest_grid_power.as_watts()} W"
@@ -341,9 +342,8 @@ class TruckChargingActor(Actor):
                         metric_name="grid_power_watts",
                     )
 
-                # --- Run Control Logic ---
-                # We only run the control logic when we get a new grid power value.
-                if selected_from(selected, grid_power_receiver):
+                    # --- Run Control Logic ---
+                    # We only run the control logic when we get a new grid power value.
                     # For now we skip the control logic if data is missing
                     if (
                         latest_prod_power is None
@@ -353,15 +353,15 @@ class TruckChargingActor(Actor):
                         _logger.warning(
                             "Received None from one of the streams, skipping control logic."
                         )
-                        continue
-                    await self._tc_control_logic.perform(
-                        latest_grid_power,
-                        latest_battery_power,
-                        latest_battery_soc,
-                        latest_battery_max_discharge_power,
-                        latest_ev_charger_power,
-                        latest_ev_charger_max_power,
-                    )
+                    else:
+                        await self._tc_control_logic.perform(
+                            latest_grid_power,
+                            latest_battery_power,
+                            latest_battery_soc,
+                            latest_battery_max_discharge_power,
+                            latest_ev_charger_power,
+                            latest_ev_charger_max_power,
+                        )
         finally:
             # Ensure the InfluxDB client is closed gracefully
             self._influx_reporter.close()
