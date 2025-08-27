@@ -137,6 +137,23 @@ class TcControlLogic:
 class TruckChargingActor(Actor):
     """Actor that implements the control logic for the EV charging system."""
 
+    class MockInfluxReporter:
+        """Mock InfluxReporter that does nothing."""
+
+        def report_metrics(
+            self,
+            *,
+            timestamp: datetime,
+            value: float,
+            metric_name: str,
+        ) -> None:
+            """Mock method that does nothing."""
+            pass
+
+        def close(self) -> None:
+            """Mock method that does nothing."""
+            pass
+
     def __init__(
         self,
         config: Config,
@@ -147,7 +164,11 @@ class TruckChargingActor(Actor):
         self._config = config
         self._config_receiver = config_rx
         # Instantiate the InfluxReporter
-        self._influx_reporter = InfluxReporter()
+        self._influx_reporter = (
+            InfluxReporter()
+            if os.getenv("INFLUXDB3_AUTH_TOKEN")
+            else self.MockInfluxReporter()
+        )
         self._target_power = self._config.target_power
         self._tc_control_logic: TcControlLogic | None = None
         _logger.info("TruckChargingActor initialized.")
@@ -323,10 +344,9 @@ async def main() -> None:
     )
 
     if not os.getenv("INFLUXDB3_AUTH_TOKEN"):
-        logging.critical(
-            "INFLUXDB3_AUTH_TOKEN environment variable not set. Terminating."
+        logging.warning(
+            "INFLUXDB3_AUTH_TOKEN environment variable not set. Will not log to InfluxDB."
         )
-        return
 
     # Silence the noisy SDK logger
     logging.getLogger("frequenz.sdk.microgrid._old_component_data").setLevel(60)
