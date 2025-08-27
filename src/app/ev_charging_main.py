@@ -28,10 +28,7 @@ _logger = logging.getLogger(__name__)
 CONFIG_PATH = pathlib.Path("config.toml")
 
 # Define the microgrid API URL
-MICROGRID_API_URL = "grpc://[::1]:8800"
-# MICROGRID_API_URL = "grpc://microgrid.sandbox.api.frequenz.io:62060"
-
-_logger = logging.getLogger(__name__)
+MICROGRID_API_URL = os.getenv("MICROGRID_API_URL", "grpc://[::1]:8800")
 
 
 class TcControlLogic:
