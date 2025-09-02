@@ -1,0 +1,27 @@
+# Power Curtailment Actor Configuration
+
+# Application settings
+dry_run = false 
+
+[power_curtailment_actor_config]
+# How often the actor runs (in seconds)
+run_frequency = 3600
+
+# Frequency of day-ahead price data ("15min", "1H", etc.)
+da_price_frequency = "1H"
+
+# List of microgrid IDs to send dispatches to
+microgrid_ids = []  # Replace with your actual microgrid IDs
+
+# Price threshold above which to curtail charging (EUR/MWh)
+price_limit = 150.0
+
+# Power reduction in watts during curtailment
+power_reduction_w = 5000.0
+
+# Retry settings for price data fetching
+retries = 3
+initial_backoff = 60  # seconds
+
+# Country code for day-ahead prices
+country_code = "DE_LU"  # Germany/Luxembourg
