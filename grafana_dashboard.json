@@ -47,8 +47,8 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
-        "w": 6,
+        "h": 7,
+        "w": 4,
         "x": 0,
         "y": 0
       },
@@ -72,9 +72,10 @@
       "targets": [
         {
           "dataset": "iox",
-          "editorMode": "builder",
+          "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT \"grid_power_watts\" FROM \"power_metrics\" WHERE \"time\" >= $__timeFrom AND \"time\" <= $__timeTo ",
+          "rawQuery": true,
+          "rawSql": "SELECT \"grid_power_watts\" FROM \"power_metrics\" WHERE grid_power_watts IS NOT NULL ORDER BY time desc LIMIT 1",
           "refId": "A",
           "sql": {
             "columns": [
@@ -128,9 +129,9 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
-        "w": 6,
-        "x": 6,
+        "h": 7,
+        "w": 4,
+        "x": 4,
         "y": 0
       },
       "id": 7,
@@ -209,8 +210,90 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
-        "w": 6,
+        "h": 7,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "id": 9,
+      "options": {
+        "minVizHeight": 3,
+        "minVizWidth": 75,
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^ev_charger_power_watts$/",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "dataset": "iox",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT \"ev_charger_power_watts\" FROM \"power_metrics\" WHERE \"time\" >= $__timeFrom AND \"time\" <= $__timeTo ",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [
+                  {
+                    "name": "ev_charger_power_watts",
+                    "type": "functionParameter"
+                  }
+                ],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ]
+          },
+          "table": "power_metrics"
+        }
+      ],
+      "title": "Truck Charger Power",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "detkmau4e9kw0f"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "blue",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
         "x": 12,
         "y": 0
       },
@@ -298,9 +381,9 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
-        "w": 6,
-        "x": 18,
+        "h": 7,
+        "w": 4,
+        "x": 16,
         "y": 0
       },
       "id": 6,
@@ -326,7 +409,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \"battery_soc\" FROM \"power_metrics\"",
+          "rawSql": "SELECT \"battery_soc\" FROM \"power_metrics\" WHERE \"battery_soc\" >= 0 order by time desc limit 1",
           "refId": "A",
           "sql": {
             "columns": [
@@ -366,7 +449,7 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": true,
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -374,7 +457,7 @@
             "barAlignment": 0,
             "barWidthFactor": 0.6,
             "drawStyle": "line",
-            "fillOpacity": 0,
+            "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -383,9 +466,6 @@
             },
             "insertNulls": false,
             "lineInterpolation": "smooth",
-            "lineStyle": {
-              "fill": "solid"
-            },
             "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
@@ -401,7 +481,6 @@
               "mode": "off"
             }
           },
-          "fieldMinMax": false,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -415,23 +494,22 @@
                 "value": 80
               }
             ]
-          },
-          "unit": "watt"
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 13,
+        "h": 9,
         "w": 12,
         "x": 0,
-        "y": 9
+        "y": 7
       },
       "id": 2,
       "options": {
         "legend": {
           "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
+          "displayMode": "hidden",
+          "placement": "right",
           "showLegend": false
         },
         "tooltip": {
@@ -451,7 +529,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \"time\", \"grid_power_watts\" FROM \"power_metrics\" WHERE \"time\" >= $__timeFrom AND \"time\" <= $__timeTo ",
+          "rawSql": "SELECT \"time\", \"grid_power_watts\" FROM \"power_metrics\" WHERE \"grid_power_watts\" IS NOT NULL AND \"time\" >= $__timeFrom AND \"time\" <= $__timeTo ",
           "refId": "A",
           "sql": {
             "columns": [
@@ -546,10 +624,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 13,
+        "h": 9,
         "w": 12,
         "x": 12,
-        "y": 9
+        "y": 7
       },
       "id": 5,
       "options": {
@@ -671,10 +749,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 13,
+        "h": 8,
         "w": 12,
         "x": 0,
-        "y": 22
+        "y": 16
       },
       "id": 4,
       "options": {
@@ -761,7 +839,7 @@
             "lineStyle": {
               "fill": "solid"
             },
-            "lineWidth": 1,
+            "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
@@ -779,7 +857,7 @@
           "fieldMinMax": false,
           "mappings": [],
           "thresholds": {
-            "mode": "absolute",
+            "mode": "percentage",
             "steps": [
               {
                 "color": "green",
@@ -791,15 +869,15 @@
               }
             ]
           },
-          "unit": "watt"
+          "unit": "percentunit"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 13,
+        "h": 8,
         "w": 12,
         "x": 12,
-        "y": 22
+        "y": 16
       },
       "id": 1,
       "options": {
@@ -826,7 +904,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \"time\", \"battery_soc\" FROM \"power_metrics\" WHERE \"time\" >= $__timeFrom AND \"time\" <= $__timeTo ",
+          "rawSql": "SELECT \"time\", \"battery_soc\" FROM \"power_metrics\" WHERE \"battery_soc\" >= 0 AND \"time\" >= $__timeFrom AND \"time\" <= $__timeTo",
           "refId": "A",
           "sql": {
             "columns": [
@@ -869,7 +947,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "New dashboard",
+  "title": "Truck Charging Dashboard",
   "uid": "5351a2fd-a560-40d4-a742-83e9ca85c79e",
-  "version": 20
+  "version": 34
 }
