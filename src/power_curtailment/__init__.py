@@ -1,0 +1,1 @@
+"""Reduces power consumption when day ahead prices exceed a set limit."""
