@@ -1,0 +1,137 @@
+\documentclass[a4paper,11pt]{article}
+
+\input {settings}
+
+\title{Project Summary: EV Truck Charging \\ Phase 2}
+\author{Frequenz EaaS}
+\date{12. September 2025}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+\newpage
+
+\section{Introduction}
+Building on the foundation established in Phase 1, the second phase of the ``EV Truck Charging'' project addresses the economic aspects of energy consumption. While Phase 1 focused on ensuring grid stability and operational reliability, Phase 2 introduces a layer of economic optimization by integrating real-time market data into the control logic.
+
+The primary objectives for this phase were:
+\begin{itemize}
+    \item \textbf{High-Level Cloud Application Design:} Develop a cloud-based application for managing spot market energy procurement.
+    \item \textbf{Optimization Parameters:} Define and implement optimization parameters such as EV charging thresholds and peak-shaving targets based on market prices.
+    \item \textbf{Trading Strategy Implementation:} Implement a trading strategy that leverages day-ahead market data to inform on-site energy consumption.
+    \item \textbf{Dynamic Energy Market Interaction:} Create a system that can dynamically interact with the energy market to optimize costs.
+\end{itemize}
+
+This report details the design and implementation of the cloud-based trading actor and its integration with the on-site edge control system, demonstrating a significant step towards a fully autonomous and economically optimized energy management solution.
+
+\section{System Architecture and Design}
+
+\subsection{Cloud-Based Trading Actor}
+Phase 2 introduces a new cloud-based component, the \texttt{PowerCurtailmentActor}, which is responsible for monitoring the energy market and making strategic decisions. This actor runs in the cloud and communicates with the on-site systems via the Frequenz Dispatch API.
+
+The primary responsibilities of the \texttt{PowerCurtailmentActor} are:
+\begin{itemize}
+    \item \textbf{Fetch Market Data:} It periodically fetches day-ahead electricity prices from the ENTSO-E (European Network of Transmission System Operators for Electricity) public API.
+    \item \textbf{Evaluate Trading Strategy:} It compares the fetched prices against a configurable threshold.
+    \item \textbf{Send Dispatches:} If the price exceeds the threshold, it sends a dispatch to the on-site microgrid, instructing it to reduce power consumption.
+\end{itemize}
+
+This design separates the high-level strategic decision-making (which can be done in the cloud) from the low-level, real-time control (which must be done at the edge).
+
+The following code snippet from the \texttt{PowerCurtailmentActor} shows the logic for fetching prices and sending dispatches:
+\begin{lstlisting}[language=Python, caption={Logic for fetching prices and dispatching actions.}]
+async def _process_available_prices(
+    self, da_prices: pd.Series, contracts: list[pd.Timestamp]
+) -> None:
+    """Process contracts that have available price data."""
+    limited_price_count = 0
+
+    for timestamp in contracts:
+        if timestamp in da_prices.index:
+            price = da_prices[timestamp]
+
+            if price > self._config.price_limit:
+                dispatch_success = await self._send_dispatch(timestamp)
+                if dispatch_success:
+                    limited_price_count += 1
+                else:
+                    # Don't mark as processed if dispatch failed
+                    continue
+
+            self._active_contracts[timestamp] = True
+
+    if limited_price_count > 0:
+        _logger.info(
+            "Found %d prices above limit %.2f, sent charge curtailment dispatch contracts",
+            limited_price_count,
+            self._config.price_limit,
+        )
+\end{lstlisting}
+
+\subsection{Dynamic On-Site Response}
+The on-site \texttt{TruckChargingActor} from Phase 1 has been enhanced to subscribe to dispatches from the cloud. When a dispatch is received, the actor adjusts its operational parameters to meet the requirements of the trading strategy.
+
+The key changes to the \texttt{TruckChargingActor} include:
+\begin{itemize}
+    \item \textbf{Dispatch Subscription:} The actor now subscribes to the Frequenz Dispatch API to receive messages of type \texttt{SE\_TRUCK\_CHARGING}.
+    \item \textbf{Parameter Adjustment:} Upon receiving a dispatch, it parses the payload to determine the required power reduction.
+    \item \textbf{Dynamic Control:} It then adjusts its grid target power, which in turn influences the behavior of the \texttt{TcControlLogic} to curtail EV charging and/or discharge the battery.
+\end{itemize}
+
+This allows the on-site system to dynamically respond to market conditions, reducing energy consumption when prices are high and thus lowering operational costs.
+
+The following code snippet from the \texttt{TruckChargingActor} shows how it handles incoming dispatches:
+\begin{lstlisting}[language=Python, caption={Handling dispatches in the TruckChargingActor.}]
+def _apply_dispatch_info(self, dispatch_info: DispatchInfo) -> None:
+    """Apply a dispatch info."""
+    _logger.info("Received new dispatch info: %s", dispatch_info)
+    if reduction_w := dispatch_info.options.get("power_reduction_w"):
+        try:
+            power_reduction = Power.from_watts(float(reduction_w))
+            self._target_power = self._config.target_power - power_reduction
+            _logger.info(
+                "Dispatch: Reducing target power by %s. New target power: %s",
+                power_reduction,
+                self._target_power,
+            )
+        except (ValueError, TypeError) as exc:
+            _logger.error("Dispatch: Failed to set target power reduction: %s", exc)
+    else:
+        self._target_power = self._config.target_power
+        _logger.info(
+            "Dispatch: No power reduction specified. Resetting to configured target power: %s",
+            self._target_power,
+        )
+
+    if self._tc_control_logic:
+        self._tc_control_logic.set_target_power(self._target_power)
+\end{lstlisting}
+
+\section{Business Evaluation}
+The introduction of a cloud-based trading actor in Phase 2 unlocks significant new business value by enabling the system to actively participate in the energy market. This transforms the microgrid from a passive consumer of energy into an active, economically-aware participant.
+
+The primary business benefits of this phase include:
+\begin{itemize}
+    \item \textbf{Direct Cost Savings:} By automatically reducing consumption when electricity prices are high, the system directly reduces energy procurement costs. This is particularly impactful for energy-intensive operations like truck charging.
+    \item \textbf{New Revenue Streams:} The architecture lays the groundwork for more advanced trading strategies. For example, the system could be extended to offer grid services, such as arbitrage or frequency regulation, creating new revenue streams.
+    \item \textbf{Increased Profitability:} By optimizing energy consumption based on market signals, the system increases the overall profitability of the operation. It ensures that energy is used in the most economically advantageous way.
+    \item \textbf{Enhanced Sustainability:} By consuming less energy during peak times (which are often associated with fossil-fuel-based power generation), the system can contribute to a more sustainable energy system.
+\end{itemize}
+
+This phase demonstrates the potential for significant financial gains by leveraging market opportunities and optimizing energy usage in real-time.
+
+\section{Conclusion and Next Steps}
+Phase 2 of the ``EV Truck Charging'' project has successfully extended the on-site energy management system with a cloud-based trading capability. By integrating real-time market data, the system can now make economically optimized decisions, significantly enhancing its business value. The project has successfully demonstrated a high-level cloud application for managing spot market energy procurement and a dynamic on-site response mechanism.
+
+The successful completion of this phase opens up several avenues for future development:
+\begin{itemize}
+    \item \textbf{Advanced Trading Algorithms:} Implement more sophisticated trading algorithms that can predict market trends, optimize battery charging/discharging cycles for profit, and participate in other energy markets (e.g., intraday, balancing).
+    \item \textbf{Integration with Other Data Sources:} Incorporate other data sources, such as weather forecasts (for predicting solar generation) and fleet schedules, to further refine the optimization logic.
+    \item \textbf{Full-Scale Deployment and Validation:} Deploy the system in a live production environment to validate its performance and quantify the economic benefits over a longer period.
+\end{itemize}
+
+This project has laid a robust foundation for a comprehensive, intelligent, and economically-driven energy management solution for EV fleets.
+
+\end{document}

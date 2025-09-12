@@ -1,0 +1,137 @@
+\documentclass[a4paper,11pt]{article}
+
+\input {settings}
+
+\title{Projektzusammenfassung: EV Truck Charging \\ Phase 2}
+\author{Frequenz EaaS}
+\date{12. September 2025}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+\newpage
+
+\section{Einleitung}
+Aufbauend auf der in Phase 1 geschaffenen Grundlage befasst sich die zweite Phase des Projekts ``EV Truck Charging'' mit den wirtschaftlichen Aspekten des Energieverbrauchs. Während sich Phase 1 auf die Gewährleistung der Netzstabilität und Betriebssicherheit konzentrierte, führt Phase 2 eine Ebene der wirtschaftlichen Optimierung durch die Integration von Echtzeit-Marktdaten in die Steuerungslogik ein.
+
+Die Hauptziele für diese Phase waren:
+\begin{itemize}
+    \item \textbf{Entwurf einer übergeordneten Cloud-Anwendung:} Entwicklung einer Cloud-basierten Anwendung zur Verwaltung der Strombeschaffung am Spotmarkt.
+    \item \textbf{Optimierungsparameter:} Definition und Implementierung von Optimierungsparametern wie Ladeschwellen für E-Fahrzeuge und Zielen zur Spitzenlastkappung auf Basis von Marktpreisen.
+    \item \textbf{Implementierung einer Handelsstrategie:} Implementierung einer Handelsstrategie, die Intraday oder Day-Ahead-Marktdaten nutzt, um den Energieverbrauch vor Ort zu steuern.
+    \item \textbf{Dynamische Interaktion mit dem Energiemarkt:} Schaffung eines Systems, das dynamisch mit dem Energiemarkt interagieren kann, um Kosten zu optimieren.
+\end{itemize}
+
+Dieser Bericht beschreibt den Entwurf und die Implementierung des Cloud-basierten Handels-Akteurs und seine Integration in das lokale Edge-Control-System und zeigt damit einen bedeutenden Schritt in Richtung einer vollständig autonomen und wirtschaftlich optimierten Energiemanagementlösung.
+
+\section{Systemarchitektur und Design}
+
+\subsection{Cloud-basierter Handels-Akteur}
+Phase 2 führt eine neue Cloud-basierte Komponente ein, den \texttt{PowerCurtailmentActor}, der für die Überwachung des Energiemarktes und das Treffen strategischer Entscheidungen verantwortlich ist. Dieser Akteur läuft in der Cloud und kommuniziert mit den Systemen vor Ort über die Frequenz Dispatch API.
+
+Die Hauptverantwortlichkeiten des \texttt{PowerCurtailmentActor} sind:
+\begin{itemize}
+    \item \textbf{Marktdaten abrufen:} Er ruft regelmäßig Day-Ahead-Strompreise von der öffentlichen API von ENTSO-E (Verband Europäischer Übertragungsnetzbetreiber) ab.
+    \item \textbf{Handelsstrategie bewerten:} Er vergleicht die abgerufenen Preise mit einem konfigurierbaren Schwellenwert.
+    \item \textbf{Dispatches senden:} Wenn der Preis den Schwellenwert überschreitet, sendet er einen Dispatch an das Microgrid vor Ort und weist es an, den Stromverbrauch zu reduzieren.
+\end{itemize}
+
+Dieses Design trennt die übergeordnete strategische Entscheidungsfindung (die in der Cloud erfolgen kann) von der untergeordneten Echtzeitsteuerung (die am Edge erfolgen muss).
+
+Der folgende Codeausschnitt aus dem \texttt{PowerCurtailmentActor} zeigt die Logik zum Abrufen von Preisen und zum Senden von Dispatches:
+\begin{lstlisting}[language=Python, caption={Logik zum Abrufen von Preisen und zum Versenden von Aktionen.}]
+async def _process_available_prices(
+    self, da_prices: pd.Series, contracts: list[pd.Timestamp]
+) -> None:
+    """Process contracts that have available price data."""
+    limited_price_count = 0
+
+    for timestamp in contracts:
+        if timestamp in da_prices.index:
+            price = da_prices[timestamp]
+
+            if price > self._config.price_limit:
+                dispatch_success = await self._send_dispatch(timestamp)
+                if dispatch_success:
+                    limited_price_count += 1
+                else:
+                    # Don't mark as processed if dispatch failed
+                    continue
+
+            self._active_contracts[timestamp] = True
+
+    if limited_price_count > 0:
+        _logger.info(
+            "Found %d prices above limit %.2f, sent charge curtailment dispatch contracts",
+            limited_price_count,
+            self._config.price_limit,
+        )
+\end{lstlisting}
+
+\subsection{Dynamische Reaktion vor Ort}
+Der \texttt{TruckChargingActor} aus Phase 1 wurde erweitert, um Dispatches aus der Cloud zu abonnieren. Wenn ein Dispatch empfangen wird, passt der Akteur seine Betriebsparameter an, um die Anforderungen der Handelsstrategie zu erfüllen.
+
+Die wichtigsten Änderungen am \texttt{TruckChargingActor} umfassen:
+\begin{itemize}
+    \item \textbf{Dispatch-Abonnement:} Der Akteur abonniert jetzt die Frequenz Dispatch API, um Nachrichten vom Typ \texttt{SE\_TRUCK\_CHARGING} zu empfangen.
+    \item \textbf{Parameteranpassung:} Nach Erhalt eines Dispatches analysiert er die Nutzdaten, um die erforderliche Leistungsreduzierung zu bestimmen.
+    \item \textbf{Dynamische Steuerung:} Anschließend passt er seine Netzziel-Leistung an, was wiederum das Verhalten der \texttt{TcControlLogic} beeinflusst, um das Laden von E-Fahrzeugen zu drosseln und/oder die Batterie zu entladen.
+\end{itemize}
+
+Dies ermöglicht es dem System vor Ort, dynamisch auf Marktbedingungen zu reagieren, den Energieverbrauch bei hohen Preisen zu senken und so die Betriebskosten zu senken.
+
+Der folgende Codeausschnitt aus dem \texttt{TruckChargingActor} zeigt, wie er eingehende Dispatches behandelt:
+\begin{lstlisting}[language=Python, caption={Behandlung von Dispatches im TruckChargingActor.}]
+def _apply_dispatch_info(self, dispatch_info: DispatchInfo) -> None:
+    """Apply a dispatch info."""
+    _logger.info("Received new dispatch info: %s", dispatch_info)
+    if reduction_w := dispatch_info.options.get("power_reduction_w"):
+        try:
+            power_reduction = Power.from_watts(float(reduction_w))
+            self._target_power = self._config.target_power - power_reduction
+            _logger.info(
+                "Dispatch: Reducing target power by %s. New target power: %s",
+                power_reduction,
+                self._target_power,
+            )
+        except (ValueError, TypeError) as exc:
+            _logger.error("Dispatch: Failed to set target power reduction: %s", exc)
+    else:
+        self._target_power = self._config.target_power
+        _logger.info(
+            "Dispatch: No power reduction specified. Resetting to configured target power: %s",
+            self._target_power,
+        )
+
+    if self._tc_control_logic:
+        self._tc_control_logic.set_target_power(self._target_power)
+\end{lstlisting}
+
+\section{Geschäftliche Bewertung}
+Die Einführung eines Cloud-basierten Handels-Akteurs in Phase 2 erschließt einen erheblichen neuen Geschäftswert, indem sie dem System ermöglicht, aktiv am Energiemarkt teilzunehmen. Dies verwandelt das Microgrid in einen aktiven, wirtschaftlich bewussten Teilnehmer des Energiesystems.
+
+Die primären geschäftlichen Vorteile dieser Phase umfassen:
+\begin{itemize}
+    \item \textbf{Direkte Kosteneinsparungen:} Durch die automatische Reduzierung des Verbrauchs bei hohen Strompreisen senkt das System direkt die Energiekosten. Dies ist besonders wirkungsvoll bei energieintensiven Vorgängen wie dem Laden von Lastwagen.
+    \item \textbf{Neue Einnahmequellen:} Die Architektur legt den Grundstein für fortschrittlichere Handelsstrategien. Zum Beispiel könnte das System erweitert werden, um Netzdienstleistungen wie Arbitrage oder Frequenzregulierung anzubieten und so neue Einnahmequellen zu schaffen.
+    \item \textbf{Gesteigerte Rentabilität:} Durch die Optimierung des Energieverbrauchs auf der Grundlage von Marktsignalen steigert das System die Gesamtrentabilität. Es stellt sicher, dass Energie auf die wirtschaftlich vorteilhafteste Weise genutzt wird.
+    \item \textbf{Verbesserte Nachhaltigkeit:} Indem das System in Spitzenzeiten (die oft mit der Stromerzeugung aus fossilen Brennstoffen verbunden sind) weniger Energie verbraucht, kann es zu einem nachhaltigeren Energiesystem beitragen.
+\end{itemize}
+
+Diese Phase demonstriert das Potenzial für finanzielle Gewinne durch die Nutzung von Marktchancen und die Optimierung des Energieverbrauchs in Echtzeit.
+
+\section{Fazit und nächste Schritte}
+Phase 2 des Projekts ``EV Truck Charging'' hat das Energiemanagementsystem vor Ort erfolgreich um eine Cloud-basierte Handelsfunktion erweitert. Durch die Integration von Echtzeit-Marktdaten kann das System nun wirtschaftlich optimierte Entscheidungen treffen und seinen Geschäftswert erheblich steigern. Das Projekt hat erfolgreich eine übergeordnete Cloud-Anwendung zur Verwaltung der Energiebeschaffung am Spotmarkt und einen dynamischen Reaktionsmechanismus vor Ort demonstriert.
+
+Der erfolgreiche Abschluss dieser Phase eröffnet mehrere Wege für die zukünftige Entwicklung:
+\begin{itemize}
+    \item \textbf{Fortschrittliche Handelsalgorithmen:} Implementierung komplexerer Handelsalgorithmen, die Markttrends vorhersagen, Lade-/Entladezyklen von Batterien gewinnorientiert optimieren und an anderen Energiemärkten (z. B. Intraday, Regelenergie) teilnehmen können.
+    \item \textbf{Integration mit anderen Datenquellen:} Einbindung anderer Datenquellen wie Wettervorhersagen (zur Vorhersage der Solarstromerzeugung) und Flottenpläne, um die Optimierungslogik weiter zu verfeinern.
+    \item \textbf{Vollständige Bereitstellung und Validierung:} Einsatz des Systems in einer Live-Produktionsumgebung, um seine Leistung zu validieren und die wirtschaftlichen Vorteile über einen längeren Zeitraum zu quantifizieren.
+\end{itemize}
+
+Dieses Projekt hat eine robuste Grundlage für eine umfassende, intelligente und wirtschaftlich ausgerichtete Energiemanagementlösung für E-LKW-Flotten gelegt.
+
+\end{document}
