@@ -4,7 +4,7 @@
 
 \title{Projektzusammenfassung: EV Truck Charging \\ Phase 2}
 \author{Frequenz EaaS}
-\date{12. September 2025}
+\date{17. September 2025}
 
 \begin{document}
 
@@ -75,7 +75,7 @@ Der \texttt{TruckChargingActor} aus Phase 1 wurde erweitert, um Dispatches aus d
 
 Die wichtigsten Änderungen am \texttt{TruckChargingActor} umfassen:
 \begin{itemize}
-    \item \textbf{Dispatch-Abonnement:} Der Akteur abonniert jetzt die Frequenz Dispatch API, um Nachrichten vom Typ \texttt{SE\_TRUCK\_CHARGING} zu empfangen.
+    \item \textbf{Dispatch-Abonnement:} Der Akteur abonniert Nachrichten vom Typ \texttt{SE\_TRUCK\_CHARGING} mit Hilfe der Frequenz Dispatch API.
     \item \textbf{Parameteranpassung:} Nach Erhalt eines Dispatches analysiert er die Nutzdaten, um die erforderliche Leistungsreduzierung zu bestimmen.
     \item \textbf{Dynamische Steuerung:} Anschließend passt er seine Netzziel-Leistung an, was wiederum das Verhalten der \texttt{TcControlLogic} beeinflusst, um das Laden von E-Fahrzeugen zu drosseln und/oder die Batterie zu entladen.
 \end{itemize}
@@ -114,7 +114,7 @@ Die Einführung eines Cloud-basierten Handels-Akteurs in Phase 2 erschließt ein
 
 Die primären geschäftlichen Vorteile dieser Phase umfassen:
 \begin{itemize}
-    \item \textbf{Direkte Kosteneinsparungen:} Durch die automatische Reduzierung des Verbrauchs bei hohen Strompreisen senkt das System direkt die Energiekosten. Dies ist besonders wirkungsvoll bei energieintensiven Vorgängen wie dem Laden von Lastwagen.
+    \item \textbf{Direkte Kosteneinsparungen:} Durch die automatische Reduzierung des Verbrauchs bei hohen Strompreisen senkt das System direkt die Energiekosten. Dies ist besonders wirkungsvoll bei energieintensiven Vorgängen wie dem Laden von EV-Trucks.
     \item \textbf{Neue Einnahmequellen:} Die Architektur legt den Grundstein für fortschrittlichere Handelsstrategien. Zum Beispiel könnte das System erweitert werden, um Netzdienstleistungen wie Arbitrage oder Frequenzregulierung anzubieten und so neue Einnahmequellen zu schaffen.
     \item \textbf{Gesteigerte Rentabilität:} Durch die Optimierung des Energieverbrauchs auf der Grundlage von Marktsignalen steigert das System die Gesamtrentabilität. Es stellt sicher, dass Energie auf die wirtschaftlich vorteilhafteste Weise genutzt wird.
     \item \textbf{Verbesserte Nachhaltigkeit:} Indem das System in Spitzenzeiten (die oft mit der Stromerzeugung aus fossilen Brennstoffen verbunden sind) weniger Energie verbraucht, kann es zu einem nachhaltigeren Energiesystem beitragen.
@@ -132,6 +132,6 @@ Der erfolgreiche Abschluss dieser Phase eröffnet mehrere Wege für die zukünft
     \item \textbf{Vollständige Bereitstellung und Validierung:} Einsatz des Systems in einer Live-Produktionsumgebung, um seine Leistung zu validieren und die wirtschaftlichen Vorteile über einen längeren Zeitraum zu quantifizieren.
 \end{itemize}
 
-Dieses Projekt hat eine robuste Grundlage für eine umfassende, intelligente und wirtschaftlich ausgerichtete Energiemanagementlösung für E-LKW-Flotten gelegt.
+Dieses Projekt hat eine robuste Grundlage für eine umfassende, intelligente und wirtschaftlich ausgerichtete Energiemanagementlösung für EV-Truck-Flotten gelegt.
 
 \end{document}
