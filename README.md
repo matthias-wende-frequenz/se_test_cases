@@ -16,7 +16,28 @@ safe the token.
     docker exec -ti influxdb3 influxdb3 create token --admin
     ```
 
-As a next step, you need to create a datasource in Grafana.
+To create the database, run the following command:
+
+* **For Podman:**
+    ```sh
+    podman exec -e INFLUXDB3_AUTH_TOKEN -ti influxdb3 influxdb3 create table --database electrical_monitoring power_metrics
+    ```
+* **For Docker:**
+    ```sh
+    docker exec -e INFLUXDB3_AUTH_TOKEN -ti influxdb3 influxdb3 create table --database electrical_monitoring power_metrics
+    ```
+
+As a next step, you need to create a datasource in Grafana:
+
+1. Open Grafana in your browser
+2. Go to **Configuration** > **Data Sources** > **Add data source**
+3. Select **InfluxDB**
+4. Configure the datasource with the following settings:
+   - **URL**: `http://influxdb3:8181` (or `http://localhost:8181` if accessing from outside the container network)
+   - **Database**: `electrical_monitoring`
+   - **Disable**: TLS/SSL (use an insecure connection)
+   - **Authentication**: Add the token from the previous step to the token field
+5. Click **Save & Test** to verify the connection
 
 ### Maintainance of the InfluxDB 3 database
 
