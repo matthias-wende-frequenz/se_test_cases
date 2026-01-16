@@ -42,7 +42,7 @@ class InfluxReporter:
         # Configure options for batch writing to InfluxDB.
         write_options = WriteOptions(
             batch_size=500,
-            flush_interval=10_000,
+            flush_interval=60_000,
             jitter_interval=2_000,
             retry_interval=5_000,
             max_retries=5,
