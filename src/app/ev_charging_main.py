@@ -213,7 +213,6 @@ class TruckChargingActor(Actor):
 
                 if selected_from(selected, production_power_receiver):
                     latest_prod_power = selected.message.value
-                    assert latest_prod_power is not None
                     self._influx_reporter.report_metrics(
                         timestamp=selected.message.timestamp,
                         value=latest_prod_power.as_watts(),
@@ -221,7 +220,6 @@ class TruckChargingActor(Actor):
                     )
                 if selected_from(selected, battery_power_receiver):
                     latest_battery_power = selected.message.value
-                    assert latest_battery_power is not None
                     self._influx_reporter.report_metrics(
                         timestamp=selected.message.timestamp,
                         value=latest_battery_power.as_watts(),
@@ -229,7 +227,6 @@ class TruckChargingActor(Actor):
                     )
                 if selected_from(selected, battery_power_status_receiver):
                     latest_battery_bounds = selected.message.bounds
-                    assert latest_battery_bounds is not None
                     latest_battery_max_discharge_power = (
                         latest_battery_bounds.lower
                         if latest_battery_bounds
@@ -242,7 +239,6 @@ class TruckChargingActor(Actor):
                     )
                 if selected_from(selected, battery_soc_receiver):
                     latest_battery_soc = selected.message.value
-                    assert latest_battery_soc is not None
                     self._influx_reporter.report_metrics(
                         timestamp=selected.message.timestamp,
                         value=latest_battery_soc.as_fraction(),
@@ -250,7 +246,6 @@ class TruckChargingActor(Actor):
                     )
                 if selected_from(selected, ev_charger_power_receiver):
                     latest_ev_charger_power = selected.message.value
-                    assert latest_ev_charger_power is not None
                     self._influx_reporter.report_metrics(
                         timestamp=selected.message.timestamp,
                         value=latest_ev_charger_power.as_watts(),
@@ -258,7 +253,6 @@ class TruckChargingActor(Actor):
                     )
                 if selected_from(selected, ev_power_status_receiver):
                     latest_ev_charger_max_power = selected.message.bounds
-                    assert latest_ev_charger_max_power is not None
                     latest_ev_charger_max_power = (
                         latest_ev_charger_max_power.upper
                         if latest_ev_charger_max_power
@@ -274,7 +268,6 @@ class TruckChargingActor(Actor):
                     logging.debug(
                         f"Received grid power: {latest_grid_power.as_watts()} W"
                     )
-                    assert latest_grid_power is not None
                     self._influx_reporter.report_metrics(
                         timestamp=selected.message.timestamp,
                         value=latest_grid_power.as_watts(),
@@ -341,6 +334,9 @@ async def main() -> None:
             "INFLUXDB3_AUTH_TOKEN environment variable not set. Terminating."
         )
         return
+
+    # Silence the noisy SDK logger
+    logging.getLogger("frequenz.sdk.microgrid._old_component_data").setLevel(60)
 
     app = EvChargingApp()
     await app.run()
