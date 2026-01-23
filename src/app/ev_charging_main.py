@@ -175,12 +175,6 @@ class TruckChargingActor(Actor):
             if dispatch_info_rx is not None
             else Broadcast[DispatchInfo](name="dispatch_info_channel").new_receiver()
         )
-        # Instantiate the InfluxReporter
-        self._influx_reporter = (
-            InfluxReporter()
-            if os.getenv("INFLUXDB3_AUTH_TOKEN")
-            else self.MockInfluxReporter()
-        )
         self._target_power = self._config.target_power
         self._tc_control_logic: TcControlLogic | None = None
         _logger.info("TruckChargingActor initialized.")
@@ -211,6 +205,13 @@ class TruckChargingActor(Actor):
 
     async def _run(self) -> None:
         """Run the main actor logic."""
+        # Instantiate the InfluxReporter locally to handle actor restarts correctly
+        influx_reporter = (
+            InfluxReporter()
+            if os.getenv("INFLUXDB3_AUTH_TOKEN")
+            else self.MockInfluxReporter()
+        )
+
         # Get the high-level pools from the microgrid
         battery_pool = microgrid.new_battery_pool(priority=1)
         ev_charger_pool = microgrid.new_ev_charger_pool(priority=1)
@@ -281,14 +282,14 @@ class TruckChargingActor(Actor):
 
                 elif selected_from(selected, production_power_receiver):
                     latest_prod_power = selected.message.value
-                    self._influx_reporter.report_metrics(
+                    influx_reporter.report_metrics(
                         timestamp=selected.message.timestamp,
                         value=latest_prod_power.as_watts(),
                         metric_name="production_power_watts",
                     )
                 elif selected_from(selected, battery_power_receiver):
                     latest_battery_power = selected.message.value
-                    self._influx_reporter.report_metrics(
+                    influx_reporter.report_metrics(
                         timestamp=selected.message.timestamp,
                         value=latest_battery_power.as_watts(),
                         metric_name="battery_power_watts",
@@ -300,21 +301,21 @@ class TruckChargingActor(Actor):
                         if latest_battery_bounds
                         else Power.zero()
                     )
-                    self._influx_reporter.report_metrics(
+                    influx_reporter.report_metrics(
                         timestamp=datetime.now(tz=timezone.utc),
                         value=latest_battery_max_discharge_power.as_watts(),
                         metric_name="battery_max_discharge_power_watts",
                     )
                 elif selected_from(selected, battery_soc_receiver):
                     latest_battery_soc = selected.message.value
-                    self._influx_reporter.report_metrics(
+                    influx_reporter.report_metrics(
                         timestamp=selected.message.timestamp,
                         value=latest_battery_soc.as_fraction(),
                         metric_name="battery_soc",
                     )
                 elif selected_from(selected, ev_charger_power_receiver):
                     latest_ev_charger_power = selected.message.value
-                    self._influx_reporter.report_metrics(
+                    influx_reporter.report_metrics(
                         timestamp=selected.message.timestamp,
                         value=latest_ev_charger_power.as_watts(),
                         metric_name="ev_charger_power_watts",
@@ -326,7 +327,7 @@ class TruckChargingActor(Actor):
                         if latest_ev_charger_max_power
                         else Power.zero()
                     )
-                    self._influx_reporter.report_metrics(
+                    influx_reporter.report_metrics(
                         timestamp=datetime.now(tz=timezone.utc),
                         value=latest_ev_charger_max_power.as_watts(),
                         metric_name="ev_charger_max_power_watts",
@@ -336,7 +337,7 @@ class TruckChargingActor(Actor):
                     logging.debug(
                         f"Received grid power: {latest_grid_power.as_watts()} W"
                     )
-                    self._influx_reporter.report_metrics(
+                    influx_reporter.report_metrics(
                         timestamp=selected.message.timestamp,
                         value=latest_grid_power.as_watts(),
                         metric_name="grid_power_watts",
@@ -364,7 +365,7 @@ class TruckChargingActor(Actor):
                         )
         finally:
             # Ensure the InfluxDB client is closed gracefully
-            self._influx_reporter.close()
+            influx_reporter.close()
 
 
 async def run_main() -> None:
