@@ -33,7 +33,8 @@ dependencies = [
 dynamic = ["version"]
 
 [project.scripts]
-on_grid = "test_cases.dynamic_condition_on_grid:main"
+on_grid = "se_test_cases.dynamic_condition_on_grid:main"
+ev_charging = "app.ev_charging_main:main"
 
 [[project.authors]]
 name = "Frequenz Energy-as-a-Service GmbH"
