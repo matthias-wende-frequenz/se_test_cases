@@ -367,7 +367,7 @@ class TruckChargingActor(Actor):
             self._influx_reporter.close()
 
 
-async def main() -> None:
+async def run_main() -> None:
     """Create and run the EvChargingApp."""
     logging.basicConfig(
         format="%(asctime)s %(levelname)-8s %(filename)s:%(lineno)d: %(message)s",
@@ -432,9 +432,15 @@ async def main() -> None:
         actor = TruckChargingActor(
             config=actor_config,
             config_rx=config_channel.new_receiver(),
+            dispatch_info_rx=None,
         )
         await run(actor)
 
 
+def main() -> None:
+    """Entry point for the application script."""
+    asyncio.run(run_main())
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
