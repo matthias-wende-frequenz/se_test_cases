@@ -65,13 +65,9 @@ class InfluxReporter:
         )
 
         # Instantiate the InfluxDB client.
-        token = INFLUX_TOKEN
-        if token and not (token.startswith("Token ") or token.startswith("Bearer ")):
-            token = f"Token {token}"
-
         self._influx_client = InfluxDBClient3(
             host=INFLUX_HOST,
-            token=token,
+            token=INFLUX_TOKEN,
             database=INFLUX_DATABASE,
             write_client_options=wco,
         )
