@@ -3,13 +3,19 @@ import os
 from datetime import datetime
 
 from frequenz.quantities import Percentage, Power
+from typing import Any
+
 from influxdb_client_3 import (
     InfluxDBClient3,
-    InfluxDBError,
     Point,
     WriteOptions,
     write_client_options,
 )
+
+try:
+    from influxdb_client_3.exceptions.exceptions import InfluxDBError
+except ImportError:
+    from influxdb_client_3.exceptions import InfluxDBError
 
 _logger = logging.getLogger(__name__)
 
@@ -19,17 +25,17 @@ INFLUX_TOKEN = os.getenv("INFLUXDB3_AUTH_TOKEN")
 INFLUX_DATABASE = os.getenv("INFLUX_DATABASE", "electrical_monitoring")
 
 
-def success_callback(self, data: str):
+def success_callback(conf: Any, data: str):
     """Callback for successful InfluxDB write."""
     _logger.info(f"Successfully wrote batch to InfluxDB: {data}")
 
 
-def error_callback(self, data: str, exception: InfluxDBError):
+def error_callback(conf: Any, data: str, exception: InfluxDBError):
     """Callback for failed InfluxDB write."""
     _logger.error(f"Failed writing batch to InfluxDB: {data} due to: {exception}")
 
 
-def retry_callback(self, data: str, exception: InfluxDBError):
+def retry_callback(conf: Any, data: str, exception: InfluxDBError):
     """Callback for retried InfluxDB write."""
     _logger.warning(f"Retrying batch to InfluxDB: {data} after error: {exception}")
 
@@ -42,7 +48,7 @@ class InfluxReporter:
         # Configure options for batch writing to InfluxDB.
         write_options = WriteOptions(
             batch_size=500,
-            flush_interval=60_000,
+            flush_interval=1_000,
             jitter_interval=2_000,
             retry_interval=5_000,
             max_retries=5,
@@ -59,9 +65,13 @@ class InfluxReporter:
         )
 
         # Instantiate the InfluxDB client.
+        token = INFLUX_TOKEN
+        if token and not (token.startswith("Token ") or token.startswith("Bearer ")):
+            token = f"Token {token}"
+
         self._influx_client = InfluxDBClient3(
             host=INFLUX_HOST,
-            token=INFLUX_TOKEN,
+            token=token,
             database=INFLUX_DATABASE,
             write_client_options=wco,
         )
